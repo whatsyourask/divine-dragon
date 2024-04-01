@@ -6,7 +6,7 @@ import (
 	"os"
 	"strings"
 
-	"avant-garde/util"
+	"divine-dragon/util"
 
 	"github.com/ropnop/gokrb5/v8/iana/errorcode"
 

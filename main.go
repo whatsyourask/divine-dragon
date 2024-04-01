@@ -1,7 +1,7 @@
 package main
 
 import (
-	"avant-garde/remote_exploit"
+	"divine-dragon/remote_exploit"
 )
 
 func main() {
