@@ -38,7 +38,7 @@ type KerberosSession struct {
 	Verbose      bool
 	SafeMode     bool
 	HashFile     *os.File
-	// Logger       *util.Logger
+	Logger       *util.Logger
 }
 
 type KerberosSessionOptions struct {
@@ -48,26 +48,26 @@ type KerberosSessionOptions struct {
 	SafeMode         bool
 	Downgrade        bool
 	HashFilename     string
-	//logger           *util.Logger
+	logger           *util.Logger
 }
 
 func NewKerberosSession(options KerberosSessionOptions) (k KerberosSession, err error) {
 	if options.Domain == "" {
 		return k, fmt.Errorf("domain must not be empty")
 	}
-	// if options.logger == nil {
-	// 	logger := util.NewLogger(options.Verbose, "")
-	// 	options.logger = &logger
-	// }
+	if options.logger == nil {
+		logger := util.ASREPRoastingLogger(options.Verbose, "")
+		options.logger = &logger
+	}
 	var hashFile *os.File
 	if options.HashFilename != "" {
 		hashFile, err = os.OpenFile(options.HashFilename, os.O_APPEND|os.O_WRONLY|os.O_CREATE, 0644)
 		if err != nil {
 			return k, err
 		}
-		//options.logger.Log.Infof("Saving any captured hashes to %s", hashFile.Name())
+		options.logger.Log.Infof("Saving any captured hashes to %s", hashFile.Name())
 		if !options.Downgrade {
-			//options.logger.Log.Warningf("You are capturing AS-REPs, but not downgrading encryption. You probably want to downgrade to arcfour-hmac-md5 (--downgrade) to crack them with a user's password instead of AES keys")
+			options.logger.Log.Warningf("You are capturing AS-REPs, but not downgrading encryption. You probably want to downgrade to arcfour-hmac-md5 (--downgrade) to crack them with a user's password instead of AES keys")
 		}
 	}
 
@@ -76,7 +76,7 @@ func NewKerberosSession(options KerberosSessionOptions) (k KerberosSession, err 
 	Config, err := kconfig.NewFromString(configstring)
 	if options.Downgrade {
 		Config.LibDefaults.DefaultTktEnctypeIDs = []int32{23} // downgrade to arcfour-hmac-md5 for crackable AS-REPs
-		//options.logger.Log.Info("Using downgraded encryption: arcfour-hmac-md5")
+		options.logger.Log.Info("Using downgraded encryption: arcfour-hmac-md5")
 	}
 	if err != nil {
 		panic(err)
@@ -94,7 +94,7 @@ func NewKerberosSession(options KerberosSessionOptions) (k KerberosSession, err 
 		Verbose:      options.Verbose,
 		SafeMode:     options.SafeMode,
 		HashFile:     hashFile,
-		//Logger:       options.logger,
+		Logger:       options.logger,
 	}
 	return k, err
 
@@ -175,14 +175,14 @@ func (k KerberosSession) TestUsername(username string) (bool, error) {
 func (k KerberosSession) DumpASRepHash(asrep messages.ASRep) {
 	hash, err := util.ASRepToHashcat(asrep)
 	if err != nil {
-		//k.Logger.Log.Debugf("[!] Got encrypted TGT for %s, but couldn't convert to hash: %s", asrep.CName.PrincipalNameString(), err.Error())
+		k.Logger.Log.Debugf("[!] Got encrypted TGT for %s, but couldn't convert to hash: %s", asrep.CName.PrincipalNameString(), err.Error())
 		return
 	}
-	// k.Logger.Log.Noticef("[+] %s has no pre auth required. Dumping hash to crack offline:\n%s", asrep.CName.PrincipalNameString(), hash)
+	k.Logger.Log.Noticef("[+] %s has no pre auth required. Dumping hash to crack offline:\n%s", asrep.CName.PrincipalNameString(), hash)
 	if k.HashFile != nil {
 		_, err := k.HashFile.WriteString(fmt.Sprintf("%s\n", hash))
 		if err != nil {
-			// k.Logger.Log.Errorf("[!] Error writing hash to file: %s", err.Error())
+			k.Logger.Log.Errorf("[!] Error writing hash to file: %s", err.Error())
 		}
 	}
 }

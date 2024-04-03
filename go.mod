@@ -2,7 +2,10 @@ module divine-dragon
 
 go 1.21.0
 
-require github.com/ropnop/gokrb5/v8 v8.0.0-20201111231119-729746023c02
+require (
+	github.com/op/go-logging v0.0.0-20160315200505-970db520ece7
+	github.com/ropnop/gokrb5/v8 v8.0.0-20201111231119-729746023c02
+)
 
 require (
 	github.com/hashicorp/go-uuid v1.0.2 // indirect
