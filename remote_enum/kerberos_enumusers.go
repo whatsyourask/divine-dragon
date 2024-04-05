@@ -12,7 +12,7 @@ import (
 	"time"
 )
 
-var (
+type KerberosEnumUsersModule struct {
 	domain       string
 	dc           string
 	verbose      bool
@@ -23,69 +23,68 @@ var (
 	kSession transport.KerberosSession
 	kOptions transport.KerberosSessionOptions
 
-	ctx, cancel = context.WithCancel(context.Background())
-	threads     int
-	delay       int
-	counter     int32
-	successes   int32
+	ctx       context.Context
+	cancel    context.CancelFunc
+	threads   int
+	delay     int
+	counter   int32
+	successes int32
 
 	logger util.Logger
-)
-
-func setupSession() bool {
-	kOptions = transport.KerberosSessionOptions{
-		Domain:           domain,
-		DomainController: dc,
-		Verbose:          verbose,
-		SafeMode:         safemode,
-		Downgrade:        downgrade,
-	}
-	k, err := transport.NewKerberosSession(kOptions)
-	if err != nil {
-		logger.Log.Error(err)
-		return false
-	}
-	kSession = k
-
-	logger.Log.Info("Using KDC(s):")
-	for _, v := range kSession.Kdcs {
-		logger.Log.Infof("\t%s\n", v)
-	}
-
-	return true
 }
 
-func SetupKerberosEnumUsersModule(domain_opt string, dc_opt string, verbose_opt bool, safemode_opt bool,
-	downgrade_opt bool, usernamelist_opt string, logFileName string, threads_opt int, delay_opt int) bool {
-	domain = domain_opt
-	dc = dc_opt
-	verbose = verbose_opt
-	safemode = safemode_opt
-	downgrade = downgrade_opt
-	usernamelist = usernamelist_opt
-
-	delay = delay_opt
-	if delay != 0 {
-		threads = 1
-		logger.Log.Infof("Delay set. Using single thread and delaying %dms between attempts\n", delay)
+func SetupModule(domain_opt string, dc_opt string, verbose_opt bool, safemode_opt bool,
+	downgrade_opt bool, usernamelist_opt string,
+	logFileName string, threads_opt int, delay_opt int) *KerberosEnumUsersModule {
+	keum := KerberosEnumUsersModule{domain: domain_opt,
+		dc:           dc_opt,
+		verbose:      verbose_opt,
+		safemode:     safemode_opt,
+		downgrade:    downgrade_opt,
+		usernamelist: usernamelist_opt}
+	keum.ctx, keum.cancel = context.WithCancel(context.Background())
+	keum.logger = util.KerberosEnumUsersLogger(verbose_opt, logFileName)
+	keum.delay = delay_opt
+	if delay_opt != 0 {
+		keum.threads = 1
+		keum.logger.Log.Infof("Delay set. Using single thread and delaying %dms between attempts\n", keum.delay)
 	} else {
-		threads = threads_opt
+		keum.threads = threads_opt
 	}
-	logger = util.KerberosEnumUsersLogger(verbose, logFileName)
-	status := setupSession()
-	return status
+	keum.setupSession()
+	return &keum
 }
 
-func KerberosEnumUsers() {
-	usersChan := make(chan string, threads)
-	defer cancel()
+func (ap *KerberosEnumUsersModule) setupSession() {
+	ap.kOptions = transport.KerberosSessionOptions{
+		Domain:           ap.domain,
+		DomainController: ap.dc,
+		Verbose:          ap.verbose,
+		SafeMode:         ap.safemode,
+		Downgrade:        ap.downgrade,
+	}
+	k, err := transport.NewKerberosSession(ap.kOptions)
+	if err != nil {
+		ap.logger.Log.Error(err)
+	}
+	ap.kSession = k
+
+	ap.logger.Log.Info("Using KDC(s):")
+	for _, v := range ap.kSession.Kdcs {
+		ap.logger.Log.Infof("\t%s\n", v)
+	}
+}
+
+func (keum *KerberosEnumUsersModule) Run() {
+	usersChan := make(chan string, keum.threads)
+	defer keum.cancel()
 
 	var wg sync.WaitGroup
-	wg.Add(threads)
+	wg.Add(keum.threads)
 
 	var scanner *bufio.Scanner
-	if usernamelist != "-" {
-		file, err := os.Open(usernamelist)
+	if keum.usernamelist != "-" {
+		file, err := os.Open(keum.usernamelist)
 		if err != nil {
 			// logger.Log.Error(err.Error())
 			return
@@ -96,8 +95,8 @@ func KerberosEnumUsers() {
 		scanner = bufio.NewScanner(os.Stdin)
 	}
 
-	for i := 0; i < threads; i++ {
-		go makeKerberosEnumUsersWorker(ctx, usersChan, &wg)
+	for i := 0; i < keum.threads; i++ {
+		go keum.makeKerberosEnumUsersWorker(keum.ctx, usersChan, &wg)
 	}
 
 	start := time.Now()
@@ -105,32 +104,32 @@ func KerberosEnumUsers() {
 Scan:
 	for scanner.Scan() {
 		select {
-		case <-ctx.Done():
+		case <-keum.ctx.Done():
 			break Scan
 		default:
 			usernameline := scanner.Text()
 			username, err := util.FormatUsername(usernameline)
 			if err != nil {
-				logger.Log.Debugf("[!] %q - %v", usernameline, err.Error())
+				keum.logger.Log.Debugf("[!] %q - %v", usernameline, err.Error())
 				continue
 			}
-			time.Sleep(time.Duration(delay) * time.Millisecond)
+			time.Sleep(time.Duration(keum.delay) * time.Millisecond)
 			usersChan <- username
 		}
 	}
 	close(usersChan)
 	wg.Wait()
 
-	finalCount := atomic.LoadInt32(&counter)
-	finalSuccess := atomic.LoadInt32(&successes)
-	logger.Log.Infof("Done! Tested %d usernames (%d valid) in %.3f seconds", finalCount, finalSuccess, time.Since(start).Seconds())
+	finalCount := atomic.LoadInt32(&keum.counter)
+	finalSuccess := atomic.LoadInt32(&keum.successes)
+	keum.logger.Log.Infof("Done! Tested %d usernames (%d valid) in %.3f seconds", finalCount, finalSuccess, time.Since(start).Seconds())
 
 	if err := scanner.Err(); err != nil {
-		logger.Log.Error(err.Error())
+		keum.logger.Log.Error(err.Error())
 	}
 }
 
-func makeKerberosEnumUsersWorker(ctx context.Context, usernames <-chan string, wg *sync.WaitGroup) {
+func (keum *KerberosEnumUsersModule) makeKerberosEnumUsersWorker(ctx context.Context, usernames <-chan string, wg *sync.WaitGroup) {
 	defer wg.Done()
 	for {
 		select {
@@ -140,36 +139,36 @@ func makeKerberosEnumUsersWorker(ctx context.Context, usernames <-chan string, w
 			if !ok {
 				return
 			}
-			doOneKerberosEnumUser(ctx, username)
+			keum.doOneUserEnum(ctx, username)
 		}
 	}
 }
 
-func doOneKerberosEnumUser(ctx context.Context, username string) {
-	atomic.AddInt32(&counter, 1)
-	usernamefull := fmt.Sprintf("%v@%v", username, domain)
-	valid, rb, err := kSession.TestUsername(username)
+func (keum *KerberosEnumUsersModule) doOneUserEnum(ctx context.Context, username string) {
+	atomic.AddInt32(&keum.counter, 1)
+	usernamefull := fmt.Sprintf("%v@%v", username, keum.domain)
+	valid, rb, err := keum.kSession.TestUsername(username)
 	if valid {
-		atomic.AddInt32(&successes, 1)
+		atomic.AddInt32(&keum.successes, 1)
 		if rb != nil {
-			logger.Log.Infof("[!] VALID USERNAME WITH DONT REQ PREAUTH:\t %s", usernamefull)
+			keum.logger.Log.Infof("[!] VALID USERNAME WITH DONT REQ PREAUTH:\t %s", usernamefull)
 		} else {
 			if err != nil {
-				logger.Log.Infof("[-] VALID USERNAME WITH ERROR:\t %s\t (%s)", username, err)
+				keum.logger.Log.Infof("[-] VALID USERNAME WITH ERROR:\t %s\t (%s)", username, err)
 			} else {
-				logger.Log.Noticef("[+] VALID USERNAME PRE AUTH REQUIRED:\t %s", usernamefull)
+				keum.logger.Log.Noticef("[+] VALID USERNAME BUT WITH REQUIRED PRE AUTH:\t %s", usernamefull)
 			}
 		}
 	} else if err != nil {
 		// This is to determine if the error is "okay" or if we should abort everything
-		ok, errorString := kSession.HandleKerbError(err)
+		ok, errorString := keum.kSession.HandleKerbError(err)
 		if !ok {
-			logger.Log.Errorf("[!] %v - %v", usernamefull, errorString)
-			cancel()
+			keum.logger.Log.Errorf("[!] %v - %v", usernamefull, errorString)
+			keum.cancel()
 		} else {
-			logger.Log.Debugf("[!] %v - %v", usernamefull, errorString)
+			keum.logger.Log.Debugf("[!] %v - %v", usernamefull, errorString)
 		}
 	} else {
-		logger.Log.Debug("[!] Unknown behavior - %v", usernamefull)
+		keum.logger.Log.Debug("[!] Unknown behavior - %v", usernamefull)
 	}
 }
