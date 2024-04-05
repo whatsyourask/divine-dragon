@@ -33,23 +33,23 @@ type KerberosEnumUsersModule struct {
 	logger util.Logger
 }
 
-func SetupModule(domain_opt string, dc_opt string, verbose_opt bool, safemode_opt bool,
-	downgrade_opt bool, usernamelist_opt string,
-	logFileName string, threads_opt int, delay_opt int) *KerberosEnumUsersModule {
-	keum := KerberosEnumUsersModule{domain: domain_opt,
-		dc:           dc_opt,
-		verbose:      verbose_opt,
-		safemode:     safemode_opt,
-		downgrade:    downgrade_opt,
-		usernamelist: usernamelist_opt}
+func SetupModule(domainOpt string, dcOpt string, verboseOpt bool, safemodeOpt bool,
+	downgradeOpt bool, usernamelistOpt string,
+	logFileName string, threadsOpt int, delayOpt int) *KerberosEnumUsersModule {
+	keum := KerberosEnumUsersModule{domain: domainOpt,
+		dc:           dcOpt,
+		verbose:      verboseOpt,
+		safemode:     safemodeOpt,
+		downgrade:    downgradeOpt,
+		usernamelist: usernamelistOpt}
 	keum.ctx, keum.cancel = context.WithCancel(context.Background())
-	keum.logger = util.KerberosEnumUsersLogger(verbose_opt, logFileName)
-	keum.delay = delay_opt
-	if delay_opt != 0 {
+	keum.logger = util.KerberosEnumUsersLogger(verboseOpt, logFileName)
+	keum.delay = delayOpt
+	if delayOpt != 0 {
 		keum.threads = 1
 		keum.logger.Log.Infof("Delay set. Using single thread and delaying %dms between attempts\n", keum.delay)
 	} else {
-		keum.threads = threads_opt
+		keum.threads = threadsOpt
 	}
 	keum.setupSession()
 	return &keum
