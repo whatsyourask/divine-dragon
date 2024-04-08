@@ -32,7 +32,7 @@ func LDAPUnAuthenticatedBind(ldapCon *ldap.Conn, domain string) error {
 	if err != nil {
 		return fmt.Errorf("can't create a base DN for LDAP Authentication: %v", err)
 	}
-	ldapUsername := fmt.Sprintf("cn=test,dc=%s,dc=%s", sld, tld)
+	ldapUsername := fmt.Sprintf("cn=read-only-admin,dc=%s,dc=%s", sld, tld)
 	err = ldapCon.UnauthenticatedBind(ldapUsername)
 	if err != nil {
 		return fmt.Errorf("can't do unauth bind: %v", err)
@@ -63,20 +63,11 @@ func LDAPAuthenticatedBind(ldapCon *ldap.Conn, domain string, username string, p
 	return nil
 }
 
-func LDAPQuery(ldapCon *ldap.Conn, baseDN string, filter string, attributes []string) error {
+func LDAPQuery(ldapCon *ldap.Conn, baseDN string, filter string, attributes []string) (*ldap.SearchResult, error) {
 	searchReq := ldap.NewSearchRequest(baseDN, ldap.ScopeWholeSubtree, 0, 0, 0, false, filter, attributes, nil)
 	resp, err := ldapCon.Search(searchReq)
 	if err != nil {
-		return fmt.Errorf("something wrong with your search: %v", err)
+		return nil, fmt.Errorf("something wrong with your search: %v", err)
 	}
-	for _, entry := range resp.Entries {
-		fmt.Printf("%s: %v\n", entry.DN, entry.GetAttributeValue("cn"))
-		entry.PrettyPrint(3)
-	}
-	return nil
-}
-
-func ConstructFilter(template string, values []any) string {
-	filter := fmt.Sprintf(template, values...)
-	return filter
+	return resp, nil
 }
