@@ -4,9 +4,8 @@
 package transport
 
 import (
-	"errors"
+	"divine-dragon/util"
 	"fmt"
-	"strings"
 
 	"github.com/go-ldap/ldap"
 )
@@ -28,11 +27,11 @@ func LDAPConnect(remoteHost string, remotePort string) (*ldap.Conn, error) {
 }
 
 func LDAPUnAuthenticatedBind(ldapCon *ldap.Conn, domain string) error {
-	sld, tld, err := constructBaseDN(domain)
+	baseDN, err := util.ConstructBaseDN(domain)
 	if err != nil {
-		return fmt.Errorf("can't create a base DN for LDAP Authentication: %v", err)
+		return fmt.Errorf("can't determine baseDN: %v", err)
 	}
-	ldapUsername := fmt.Sprintf("cn=read-only-admin,dc=%s,dc=%s", sld, tld)
+	ldapUsername := fmt.Sprintf("cn=read-only-admin,%s", baseDN)
 	err = ldapCon.UnauthenticatedBind(ldapUsername)
 	if err != nil {
 		return fmt.Errorf("can't do unauth bind: %v", err)
@@ -40,23 +39,9 @@ func LDAPUnAuthenticatedBind(ldapCon *ldap.Conn, domain string) error {
 	return nil
 }
 
-func constructBaseDN(domain string) (string, string, error) {
-	domainName := strings.Split(domain, ".")
-	if len(domainName) != 2 {
-		return "", "", errors.New("invalid domain name")
-	}
-	tld := domainName[1]
-	sld := domainName[0]
-	return sld, tld, nil
-}
-
 func LDAPAuthenticatedBind(ldapCon *ldap.Conn, domain string, username string, password string) error {
-	sld, tld, err := constructBaseDN(domain)
-	if err != nil {
-		return fmt.Errorf("can't create a base DN for LDAP Authentication: %v", err)
-	}
-	ldapUsername := fmt.Sprintf("cn=%s,dc=%s,dc=%s", username, sld, tld)
-	err = ldapCon.Bind(ldapUsername, password)
+	simpleBindRequest := ldap.NewSimpleBindRequest(username, password, []ldap.Control{})
+	_, err := ldapCon.SimpleBind(simpleBindRequest)
 	if err != nil {
 		return fmt.Errorf("can't do auth bind: %v", err)
 	}
