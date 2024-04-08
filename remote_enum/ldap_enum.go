@@ -65,6 +65,14 @@ func (lem *LdapEnumModule) Run() {
 	} else {
 		lem.logger.Log.Notice("Bound to LDAP service successfully.")
 	}
+	err = lem.queryAllDomainControllers()
+	if err != nil {
+		lem.logger.Log.Error(err)
+	}
+	err = lem.queryAllWinServers()
+	if err != nil {
+		lem.logger.Log.Error(err)
+	}
 	err = lem.queryAllOrgUnits()
 	if err != nil {
 		lem.logger.Log.Error(err)
@@ -398,6 +406,38 @@ func (lem *LdapEnumModule) queryRemoteManagementUsers() error {
 	lem.logger.Log.Info("Querying for all Remote Management Users...")
 	remoteDesktopUsers := "CN=Remote Management Users,CN=Builtin," + lem.baseDN
 	filter := util.ConstructLDAPFilter("(memberOf:1.2.840.113556.1.4.1941:=%s)", []any{remoteDesktopUsers})
+	resp, err := transport.LDAPQuery(lem.conn, lem.baseDN, filter, []string{})
+	if err != nil {
+		return err
+	}
+	if len(resp.Entries) < 1 {
+		lem.logger.Log.Error("Query was not successfull...")
+		return nil
+	}
+	lem.logger.Log.Notice("Result of the query:\n")
+	util.LDAPListObjectsInResult(resp)
+	return nil
+}
+
+func (lem *LdapEnumModule) queryAllDomainControllers() error {
+	lem.logger.Log.Info("Querying for all Domain Controllers (DCs)...")
+	filter := util.ConstructLDAPFilter("(&(objectCategory=%s)(userAccountControl:1.2.840.113556.1.4.803:=%s))", []any{"computer", "8192"})
+	resp, err := transport.LDAPQuery(lem.conn, lem.baseDN, filter, []string{})
+	if err != nil {
+		return err
+	}
+	if len(resp.Entries) < 1 {
+		lem.logger.Log.Error("Query was not successfull...")
+		return nil
+	}
+	lem.logger.Log.Notice("Result of the query:\n")
+	util.LDAPListObjectsInResult(resp)
+	return nil
+}
+
+func (lem *LdapEnumModule) queryAllWinServers() error {
+	lem.logger.Log.Info("Querying for all Windows Servers...")
+	filter := util.ConstructLDAPFilter("(&(objectCategory=%s)(operatingSystem=%s)(!userAccountControl:1.2.840.113556.1.4.803:=%s))", []any{"computer", "*server*", "8192"})
 	resp, err := transport.LDAPQuery(lem.conn, lem.baseDN, filter, []string{})
 	if err != nil {
 		return err
