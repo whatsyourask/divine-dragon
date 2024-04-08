@@ -33,7 +33,7 @@ type KerberosEnumUsersModule struct {
 	logger util.Logger
 }
 
-func SetupModule(domainOpt string, dcOpt string, verboseOpt bool, safemodeOpt bool,
+func NewKerberosEnumUsersModule(domainOpt string, dcOpt string, verboseOpt bool, safemodeOpt bool,
 	downgradeOpt bool, usernamelistOpt string,
 	logFileName string, threadsOpt int, delayOpt int) *KerberosEnumUsersModule {
 	keum := KerberosEnumUsersModule{domain: domainOpt,
