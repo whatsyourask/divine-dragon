@@ -137,6 +137,7 @@ func (lem *LdapEnumModule) Run() {
 	if err != nil {
 		lem.logger.Log.Error(err)
 	}
+	defer lem.conn.Close()
 }
 
 // independent query
