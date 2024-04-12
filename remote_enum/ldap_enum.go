@@ -3,6 +3,7 @@ package remote_enum
 import (
 	"divine-dragon/transport"
 	"divine-dragon/util"
+	"strings"
 
 	"github.com/go-ldap/ldap"
 )
@@ -68,6 +69,10 @@ func (lem *LdapEnumModule) Run() {
 	err = lem.queryAllDomainControllers()
 	if err != nil {
 		lem.logger.Log.Error(err)
+		if strings.Contains(err.Error(), "000004DC") {
+			lem.logger.Log.Info("For successfull enumeration you have to provide some credentials, these LDAP service doesn't support querying as anonymous.")
+			return
+		}
 	}
 	err = lem.queryAllWinServers()
 	if err != nil {
