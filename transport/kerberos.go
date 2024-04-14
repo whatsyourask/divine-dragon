@@ -203,3 +203,22 @@ func (k KerberosSession) HandleKerbError(err error) (bool, string) {
 
 	return false, eString
 }
+
+func (k KerberosSession) ReceiveTGS(username string, password string, spn string) (messages.Ticket, error) {
+	Client := kclient.NewWithPassword(username, k.Realm, password, k.Config, kclient.DisablePAFXFAST(true), kclient.AssumePreAuthentication(true))
+	defer Client.Destroy()
+	if ok, err := Client.IsConfigured(); !ok {
+		return messages.Ticket{}, err
+	}
+	err := Client.Login()
+	if err == nil {
+		tkt, _, err := Client.GetServiceTicket(spn)
+		if err != nil {
+			return messages.Ticket{}, fmt.Errorf("can't get TGS: %v", err)
+		}
+		return tkt, nil
+	} else {
+		_, err := k.TestLoginError(err)
+		return messages.Ticket{}, fmt.Errorf("can't login with given credentials: %v", err)
+	}
+}
