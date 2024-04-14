@@ -3,6 +3,7 @@ package remote_enum
 import (
 	"divine-dragon/transport"
 	"divine-dragon/util"
+	"fmt"
 	"strings"
 
 	"github.com/go-ldap/ldap"
@@ -45,28 +46,8 @@ func NewLdapEnumModule(domainOpt string, remoteHostOpt string, remotePortOpt str
 }
 
 func (lem *LdapEnumModule) Run() {
-	conn, err := transport.LDAPConnect(lem.remoteHost, lem.remotePort)
-	lem.conn = conn
-	if err != nil {
-		lem.logger.Log.Error(err)
-		lem.logger.Log.Info("Exiting...")
-		return
-	} else {
-		lem.logger.Log.Noticef("Connected to LDAP service successfully - %s:%s", lem.remoteHost, lem.remotePort)
-	}
-	if lem.username != "" {
-		err = transport.LDAPAuthenticatedBind(lem.conn, lem.domain, lem.username, lem.password)
-	} else {
-		err = transport.LDAPUnAuthenticatedBind(lem.conn, lem.domain)
-	}
-	if err != nil {
-		lem.logger.Log.Error(err)
-		lem.logger.Log.Info("Exiting...")
-		return
-	} else {
-		lem.logger.Log.Notice("Bound to LDAP service successfully.")
-	}
-	err = lem.queryAllDomainControllers()
+	lem.ConnectAndBind()
+	err := lem.queryAllDomainControllers()
 	if err != nil {
 		lem.logger.Log.Error(err)
 		if strings.Contains(err.Error(), "000004DC") {
@@ -144,6 +125,36 @@ func (lem *LdapEnumModule) Run() {
 	}
 	defer lem.conn.Close()
 }
+
+func (lem *LdapEnumModule) ConnectAndBind() {
+	conn, err := transport.LDAPConnect(lem.remoteHost, lem.remotePort)
+	lem.conn = conn
+	if err != nil {
+		lem.logger.Log.Error(err)
+		lem.logger.Log.Info("Exiting...")
+		return
+	} else {
+		lem.logger.Log.Noticef("Connected to LDAP service successfully - %s:%s", lem.remoteHost, lem.remotePort)
+	}
+	if lem.username != "" {
+		err = transport.LDAPAuthenticatedBind(lem.conn, lem.domain, lem.username, lem.password)
+	} else {
+		err = transport.LDAPUnAuthenticatedBind(lem.conn, lem.domain)
+	}
+	if err != nil {
+		lem.logger.Log.Error(err)
+		lem.logger.Log.Info("Exiting...")
+		return
+	} else {
+		lem.logger.Log.Notice("Bound to LDAP service successfully.")
+	}
+}
+
+//
+// TODO:
+// Refactoring of query functions
+// Return the result, don't just print it!
+//
 
 // independent query
 func (lem *LdapEnumModule) queryAllUsers() error {
@@ -455,4 +466,23 @@ func (lem *LdapEnumModule) queryAllWinServers() error {
 	lem.logger.Log.Notice("Result of the query:\n")
 	util.LDAPListObjectsInResult(resp)
 	return nil
+}
+
+func (lem *LdapEnumModule) RunAndQueryOnlyKerberoastableUsers() (map[string]string, error) {
+	lem.ConnectAndBind()
+	lem.logger.Log.Info("Querying for all Kerberoastable Users...")
+	filter := util.ConstructLDAPFilter("(&(objectClass=%s)(servicePrincipalName=%s)(!(cn=%s))(!(userAccountControl:1.2.840.113556.1.4.803:=%s)))", []any{"user", "*", "krbtgt", "2"})
+	resp, err := transport.LDAPQuery(lem.conn, lem.baseDN, filter, []string{})
+	if err != nil {
+		return nil, fmt.Errorf("can't do a query: %v", err)
+	}
+	SPNs := make(map[string]string)
+	for _, entry := range resp.Entries {
+		sAMAccountName := entry.GetAttributeValue("sAMAccountName")
+		if !strings.Contains(sAMAccountName, "$") {
+			SPN := entry.GetAttributeValue("servicePrincipalName")
+			SPNs[sAMAccountName] = SPN
+		}
+	}
+	return SPNs, nil
 }
