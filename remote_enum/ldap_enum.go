@@ -47,7 +47,8 @@ func NewLdapEnumModule(domainOpt string, remoteHostOpt string, remotePortOpt str
 
 func (lem *LdapEnumModule) Run() {
 	lem.ConnectAndBind()
-	err := lem.queryAllDomainControllers()
+	resp, err := lem.queryAllDomainControllers()
+	util.LDAPListObjectsInResult(resp)
 	if err != nil {
 		lem.logger.Log.Error(err)
 		if strings.Contains(err.Error(), "000004DC") {
@@ -55,74 +56,91 @@ func (lem *LdapEnumModule) Run() {
 			return
 		}
 	}
-	err = lem.queryAllWinServers()
+	resp, err = lem.queryAllWinServers()
 	if err != nil {
 		lem.logger.Log.Error(err)
 	}
-	err = lem.queryAllOrgUnits()
+	util.LDAPListObjectsInResult(resp)
+	resp, err = lem.queryAllOrgUnits()
 	if err != nil {
 		lem.logger.Log.Error(err)
 	}
-	err = lem.queryAllUsers()
+	util.LDAPListObjectsInResult(resp)
+	resp, err = lem.queryAllUsers()
 	if err != nil {
 		lem.logger.Log.Error(err)
 	}
-	err = lem.queryAllComputers()
+	util.LDAPListObjectsInResult(resp)
+	resp, err = lem.queryAllComputers()
 	if err != nil {
 		lem.logger.Log.Error(err)
 	}
-	err = lem.queryAllGroups()
+	util.LDAPListObjectsInResult(resp)
+	resp, err = lem.queryAllGroups()
 	if err != nil {
 		lem.logger.Log.Error(err)
 	}
-	err = lem.queryAllAdmins()
+	util.LDAPListObjectsInResult(resp)
+	resp, err = lem.queryAllAdmins()
 	if err != nil {
 		lem.logger.Log.Error(err)
 	}
-	err = lem.queryDomainAdmins()
+	util.LDAPListObjectsInResult(resp)
+	resp, err = lem.queryDomainAdmins()
 	if err != nil {
 		lem.logger.Log.Error(err)
 	}
-	err = lem.queryEnterpriseAdmins()
+	util.LDAPListObjectsInResult(resp)
+	resp, err = lem.queryEnterpriseAdmins()
 	if err != nil {
 		lem.logger.Log.Error(err)
 	}
-	err = lem.querySchemaAdmins()
+	util.LDAPListObjectsInResult(resp)
+	resp, err = lem.querySchemaAdmins()
 	if err != nil {
 		lem.logger.Log.Error(err)
 	}
-	err = lem.queryKeyAdmins()
+	util.LDAPListObjectsInResult(resp)
+	resp, err = lem.queryKeyAdmins()
 	if err != nil {
 		lem.logger.Log.Error(err)
 	}
-	err = lem.queryPrintOperators()
+	util.LDAPListObjectsInResult(resp)
+	resp, err = lem.queryPrintOperators()
 	if err != nil {
 		lem.logger.Log.Error(err)
 	}
-	err = lem.queryBackupOperators()
+	util.LDAPListObjectsInResult(resp)
+	resp, err = lem.queryBackupOperators()
 	if err != nil {
 		lem.logger.Log.Error(err)
 	}
-	err = lem.queryRemoteDesktopUsers()
+	util.LDAPListObjectsInResult(resp)
+	resp, err = lem.queryRemoteDesktopUsers()
 	if err != nil {
 		lem.logger.Log.Error(err)
 	}
-	err = lem.queryRemoteManagementUsers()
+	util.LDAPListObjectsInResult(resp)
+	resp, err = lem.queryRemoteManagementUsers()
 	if err != nil {
 		lem.logger.Log.Error(err)
 	}
-	err = lem.queryASREPRoastableUsers()
+	util.LDAPListObjectsInResult(resp)
+	resp, err = lem.queryASREPRoastableUsers()
 	if err != nil {
 		lem.logger.Log.Error(err)
 	}
-	err = lem.queryKerberoastableUsers()
+	util.LDAPListObjectsInResult(resp)
+	resp, err = lem.queryKerberoastableUsers()
 	if err != nil {
 		lem.logger.Log.Error(err)
 	}
-	err = lem.queryPasswordsInDescription()
+	util.LDAPListObjectsInResult(resp)
+	resp, err = lem.queryPasswordsInDescription()
 	if err != nil {
 		lem.logger.Log.Error(err)
 	}
+	util.LDAPListObjectsInResult(resp)
 	defer lem.conn.Close()
 }
 
@@ -148,6 +166,7 @@ func (lem *LdapEnumModule) ConnectAndBind() {
 	} else {
 		lem.logger.Log.Notice("Bound to LDAP service successfully.")
 	}
+	lem.queryAllDomainControllers()
 }
 
 //
@@ -156,325 +175,246 @@ func (lem *LdapEnumModule) ConnectAndBind() {
 // Return the result, don't just print it!
 //
 
+func (lem *LdapEnumModule) doQuery(filter string) (*ldap.SearchResult, error) {
+	resp, err := transport.LDAPQuery(lem.conn, lem.baseDN, filter, []string{})
+	if err != nil {
+		return nil, fmt.Errorf("[-] query was not successful: %v", err)
+	}
+	if len(resp.Entries) < 1 {
+		return nil, fmt.Errorf("[!] query was successful, but has no results.")
+	}
+	return resp, nil
+}
+
 // independent query
-func (lem *LdapEnumModule) queryAllUsers() error {
-	lem.logger.Log.Info("Querying for all active User Accounts...")
+func (lem *LdapEnumModule) queryAllUsers() (*ldap.SearchResult, error) {
+	lem.logger.Log.Info("[!] Querying for all active User Accounts...")
 	filter := util.ConstructLDAPFilter("(&(objectCategory=%s)(objectClass=%s)(!(userAccountControl:1.2.840.113556.1.4.803:=2)))",
 		[]any{"person", "user"})
-	resp, err := transport.LDAPQuery(lem.conn, lem.baseDN, filter, []string{})
+	resp, err := lem.doQuery(filter)
 	if err != nil {
-		return err
+		lem.logger.Log.Error(err)
+		return nil, err
 	}
-	if len(resp.Entries) < 1 {
-		lem.logger.Log.Error("Query was not successfull...")
-		return nil
-	}
-	lem.logger.Log.Notice("Result of the query:\n")
-	util.LDAPListObjectsInResult(resp)
-	return nil
+	return resp, nil
 }
 
 // independent query
-func (lem *LdapEnumModule) queryAllOrgUnits() error {
+func (lem *LdapEnumModule) queryAllOrgUnits() (*ldap.SearchResult, error) {
 	lem.logger.Log.Info("Querying for all Organizational Units (OU)...")
 	filter := util.ConstructLDAPFilter("(&(objectCategory=%s)(!(userAccountControl:1.2.840.113556.1.4.803:=%s)))", []any{"organizationalUnit", "2"})
-	resp, err := transport.LDAPQuery(lem.conn, lem.baseDN, filter, []string{})
+	resp, err := lem.doQuery(filter)
 	if err != nil {
-		return err
+		lem.logger.Log.Error(err)
+		return nil, err
 	}
-	if len(resp.Entries) < 1 {
-		lem.logger.Log.Error("Query was not successfull...")
-		return nil
-	}
-	lem.logger.Log.Notice("Result of the query:\n")
-	util.LDAPListObjectsInResult(resp)
-	return nil
+	return resp, nil
 }
 
 // independent query
-func (lem *LdapEnumModule) queryAllComputers() error {
+func (lem *LdapEnumModule) queryAllComputers() (*ldap.SearchResult, error) {
 	lem.logger.Log.Info("Querying for all Computers...")
 	filter := util.ConstructLDAPFilter("(sAMAccountType=%s)", []any{"805306369"})
-	resp, err := transport.LDAPQuery(lem.conn, lem.baseDN, filter, []string{})
+	resp, err := lem.doQuery(filter)
 	if err != nil {
-		return err
+		lem.logger.Log.Error(err)
+		return nil, err
 	}
-	if len(resp.Entries) < 1 {
-		lem.logger.Log.Error("Query was not successfull...")
-		return nil
-	}
-	lem.logger.Log.Notice("Result of the query:\n")
-	util.LDAPListObjectsInResult(resp)
-	return nil
+	return resp, nil
 }
 
 // independent query
-func (lem *LdapEnumModule) queryAllGroups() error {
+func (lem *LdapEnumModule) queryAllGroups() (*ldap.SearchResult, error) {
 	lem.logger.Log.Info("Querying for all Groups...")
 	filter := util.ConstructLDAPFilter("(objectCategory=%s)", []any{"group"})
-	resp, err := transport.LDAPQuery(lem.conn, lem.baseDN, filter, []string{})
+	resp, err := lem.doQuery(filter)
 	if err != nil {
-		return err
+		lem.logger.Log.Error(err)
+		return nil, err
 	}
-	if len(resp.Entries) < 1 {
-		lem.logger.Log.Error("Query was not successfull...")
-		return nil
-	}
-	lem.logger.Log.Notice("Result of the query:\n")
-	util.LDAPListObjectsInResult(resp)
-	return nil
+	return resp, nil
 }
 
 // independent query
-func (lem *LdapEnumModule) queryAllAdmins() error {
+func (lem *LdapEnumModule) queryAllAdmins() (*ldap.SearchResult, error) {
 	lem.logger.Log.Info("Querying for all Admins...")
 	filter := util.ConstructLDAPFilter("(adminCount=%s)", []any{"1"})
-	resp, err := transport.LDAPQuery(lem.conn, lem.baseDN, filter, []string{})
+	resp, err := lem.doQuery(filter)
 	if err != nil {
-		return err
+		lem.logger.Log.Error(err)
+		return nil, err
 	}
-	if len(resp.Entries) < 1 {
-		lem.logger.Log.Error("Query was not successfull...")
-		return nil
-	}
-	lem.logger.Log.Notice("Result of the query:\n")
-	util.LDAPListObjectsInResult(resp)
-	return nil
+	return resp, nil
 }
 
 // default group
-func (lem *LdapEnumModule) queryDomainAdmins() error {
+func (lem *LdapEnumModule) queryDomainAdmins() (*ldap.SearchResult, error) {
 	lem.logger.Log.Info("Querying for all Domain Admins...")
 	domainAdminsCN := "CN=Domain Admins,CN=Users," + lem.baseDN
 	filter := util.ConstructLDAPFilter("(memberOf:1.2.840.113556.1.4.1941:=%s)", []any{domainAdminsCN})
-	resp, err := transport.LDAPQuery(lem.conn, lem.baseDN, filter, []string{})
+	resp, err := lem.doQuery(filter)
 	if err != nil {
-		return err
+		lem.logger.Log.Error(err)
+		return nil, err
 	}
-	if len(resp.Entries) < 1 {
-		lem.logger.Log.Error("Query was not successfull...")
-		return nil
-	}
-	lem.logger.Log.Notice("Result of the query:\n")
-	util.LDAPListObjectsInResult(resp)
-	return nil
+	return resp, nil
 }
 
 // default group
-func (lem *LdapEnumModule) queryEnterpriseAdmins() error {
+func (lem *LdapEnumModule) queryEnterpriseAdmins() (*ldap.SearchResult, error) {
 	lem.logger.Log.Info("Querying for all Enterprise Admins...")
 	enterpriseAdminsCN := "CN=Enterprise Admins,CN=Users," + lem.baseDN
 	filter := util.ConstructLDAPFilter("(memberOf:1.2.840.113556.1.4.1941:=%s)", []any{enterpriseAdminsCN})
-	resp, err := transport.LDAPQuery(lem.conn, lem.baseDN, filter, []string{})
+	resp, err := lem.doQuery(filter)
 	if err != nil {
-		return err
+		lem.logger.Log.Error(err)
+		return nil, err
 	}
-	if len(resp.Entries) < 1 {
-		lem.logger.Log.Error("Query was not successfull...")
-		return nil
-	}
-	lem.logger.Log.Notice("Result of the query:\n")
-	util.LDAPListObjectsInResult(resp)
-	return nil
+	return resp, nil
 }
 
 // default group
-func (lem *LdapEnumModule) querySchemaAdmins() error {
+func (lem *LdapEnumModule) querySchemaAdmins() (*ldap.SearchResult, error) {
 	lem.logger.Log.Info("Querying for all Schema Admins...")
 	filter := util.ConstructLDAPFilter("(memberOf:1.2.840.113556.1.4.1941:=%s)", []any{"CN=Schema Admins,CN=Users,DC=htb,DC=local"})
-	resp, err := transport.LDAPQuery(lem.conn, lem.baseDN, filter, []string{})
+	resp, err := lem.doQuery(filter)
 	if err != nil {
-		return err
+		lem.logger.Log.Error(err)
+		return nil, err
 	}
-	if len(resp.Entries) < 1 {
-		lem.logger.Log.Error("Query was not successfull...")
-		return nil
-	}
-	lem.logger.Log.Notice("Result of the query:\n")
-	util.LDAPListObjectsInResult(resp)
-	return nil
+	return resp, nil
 }
 
 // default group
-func (lem *LdapEnumModule) queryKeyAdmins() error {
+func (lem *LdapEnumModule) queryKeyAdmins() (*ldap.SearchResult, error) {
 	lem.logger.Log.Info("Querying for all Key Admins...")
 	keyAdminsCN := "CN=Key Admins,CN=Users," + lem.baseDN
 	filter := util.ConstructLDAPFilter("(memberOf:1.2.840.113556.1.4.1941:=%s)", []any{keyAdminsCN})
-	resp, err := transport.LDAPQuery(lem.conn, lem.baseDN, filter, []string{})
+	resp, err := lem.doQuery(filter)
 	if err != nil {
-		return err
+		lem.logger.Log.Error(err)
+		return nil, err
 	}
-	if len(resp.Entries) < 1 {
-		lem.logger.Log.Error("Query was not successfull...")
-		return nil
-	}
-	lem.logger.Log.Notice("Result of the query:\n")
-	util.LDAPListObjectsInResult(resp)
-	return nil
+	return resp, nil
 }
 
 // default group
-func (lem *LdapEnumModule) queryPrintOperators() error {
+func (lem *LdapEnumModule) queryPrintOperators() (*ldap.SearchResult, error) {
 	lem.logger.Log.Info("Querying for all Print Operators...")
 	printOperatorsCN := "CN=CN=Print Operators,CN=Builtin," + lem.baseDN
 	filter := util.ConstructLDAPFilter("(memberOf:1.2.840.113556.1.4.1941:=%s)", []any{printOperatorsCN})
-	resp, err := transport.LDAPQuery(lem.conn, lem.baseDN, filter, []string{})
+	resp, err := lem.doQuery(filter)
 	if err != nil {
-		return err
+		lem.logger.Log.Error(err)
+		return nil, err
 	}
-	if len(resp.Entries) < 1 {
-		lem.logger.Log.Error("Query was not successfull...")
-		return nil
-	}
-	lem.logger.Log.Notice("Result of the query:\n")
-	util.LDAPListObjectsInResult(resp)
-	return nil
+	return resp, nil
 }
 
 // default group
-func (lem *LdapEnumModule) queryBackupOperators() error {
+func (lem *LdapEnumModule) queryBackupOperators() (*ldap.SearchResult, error) {
 	lem.logger.Log.Info("Querying for all Backup Operators...")
 	backupOperatorsCN := "CN=CN=Backup Operators,CN=Builtin," + lem.baseDN
 	filter := util.ConstructLDAPFilter("(memberOf:1.2.840.113556.1.4.1941:=%s)", []any{backupOperatorsCN})
-	resp, err := transport.LDAPQuery(lem.conn, lem.baseDN, filter, []string{})
+	resp, err := lem.doQuery(filter)
 	if err != nil {
-		return err
+		lem.logger.Log.Error(err)
+		return nil, err
 	}
-	if len(resp.Entries) < 1 {
-		lem.logger.Log.Error("Query was not successfull...")
-		return nil
-	}
-	lem.logger.Log.Notice("Result of the query:\n")
-	util.LDAPListObjectsInResult(resp)
-	return nil
+	return resp, nil
 }
 
 // independent query
-func (lem *LdapEnumModule) queryASREPRoastableUsers() error {
+func (lem *LdapEnumModule) queryASREPRoastableUsers() (*ldap.SearchResult, error) {
 	lem.logger.Log.Info("Querying for all ASREPRoastable Users...")
 	filter := util.ConstructLDAPFilter("(&(UserAccountControl:1.2.840.113556.1.4.803:=%s)(!(UserAccountControl:1.2.840.113556.1.4.803:=%s))(objectCategory=%s))", []any{"4194304", "2", "person"})
-	resp, err := transport.LDAPQuery(lem.conn, lem.baseDN, filter, []string{})
+	resp, err := lem.doQuery(filter)
 	if err != nil {
-		return err
+		lem.logger.Log.Error(err)
+		return nil, err
 	}
-	if len(resp.Entries) < 1 {
-		lem.logger.Log.Error("Query was not successfull...")
-		return nil
-	}
-	lem.logger.Log.Notice("Result of the query:\n")
-	util.LDAPListObjectsInResult(resp)
-	return nil
+	return resp, nil
 }
 
 // independent query
-func (lem *LdapEnumModule) queryKerberoastableUsers() error {
+func (lem *LdapEnumModule) queryKerberoastableUsers() (*ldap.SearchResult, error) {
 	lem.logger.Log.Info("Querying for all Kerberoastable Users...")
 	filter := util.ConstructLDAPFilter("(&(objectClass=%s)(servicePrincipalName=%s)(!(cn=%s))(!(userAccountControl:1.2.840.113556.1.4.803:=%s)))", []any{"user", "*", "krbtgt", "2"})
-	resp, err := transport.LDAPQuery(lem.conn, lem.baseDN, filter, []string{})
+	resp, err := lem.doQuery(filter)
 	if err != nil {
-		return err
+		lem.logger.Log.Error(err)
+		return nil, err
 	}
-	if len(resp.Entries) < 1 {
-		lem.logger.Log.Error("Query was not successfull...")
-		return nil
-	}
-	lem.logger.Log.Notice("Result of the query:\n")
-	util.LDAPListObjectsInResult(resp)
-	return nil
+	return resp, nil
 }
 
 // independent query
-func (lem *LdapEnumModule) queryPasswordsInDescription() error {
+func (lem *LdapEnumModule) queryPasswordsInDescription() (*ldap.SearchResult, error) {
 	lem.logger.Log.Info("Querying for passwords in description...")
 	filter := util.ConstructLDAPFilter("(&(objectCategory=%s)(|(description=%s)(description=%s)))", []any{"user", "*pass*", "*pwd*"})
-	resp, err := transport.LDAPQuery(lem.conn, lem.baseDN, filter, []string{})
+	resp, err := lem.doQuery(filter)
 	if err != nil {
-		return err
+		lem.logger.Log.Error(err)
+		return nil, err
 	}
-	if len(resp.Entries) < 1 {
-		lem.logger.Log.Error("Query was not successfull...")
-		return nil
-	}
-	lem.logger.Log.Notice("Result of the query:\n")
-	util.LDAPListObjectsInResult(resp)
-	return nil
+	return resp, nil
 }
 
 // default group
-func (lem *LdapEnumModule) queryRemoteDesktopUsers() error {
+func (lem *LdapEnumModule) queryRemoteDesktopUsers() (*ldap.SearchResult, error) {
 	lem.logger.Log.Info("Querying for all Remote Desktop Users...")
 	remoteDesktopUsers := "CN=Remote Desktop Users,CN=Builtin," + lem.baseDN
 	filter := util.ConstructLDAPFilter("(memberOf:1.2.840.113556.1.4.1941:=%s)", []any{remoteDesktopUsers})
-	resp, err := transport.LDAPQuery(lem.conn, lem.baseDN, filter, []string{})
+	resp, err := lem.doQuery(filter)
 	if err != nil {
-		return err
+		lem.logger.Log.Error(err)
+		return nil, err
 	}
-	if len(resp.Entries) < 1 {
-		lem.logger.Log.Error("Query was not successfull...")
-		return nil
-	}
-	lem.logger.Log.Notice("Result of the query:\n")
-	util.LDAPListObjectsInResult(resp)
-	return nil
+	return resp, nil
 }
 
 // default group
-func (lem *LdapEnumModule) queryRemoteManagementUsers() error {
+func (lem *LdapEnumModule) queryRemoteManagementUsers() (*ldap.SearchResult, error) {
 	lem.logger.Log.Info("Querying for all Remote Management Users...")
 	remoteDesktopUsers := "CN=Remote Management Users,CN=Builtin," + lem.baseDN
 	filter := util.ConstructLDAPFilter("(memberOf:1.2.840.113556.1.4.1941:=%s)", []any{remoteDesktopUsers})
-	resp, err := transport.LDAPQuery(lem.conn, lem.baseDN, filter, []string{})
+	resp, err := lem.doQuery(filter)
 	if err != nil {
-		return err
+		lem.logger.Log.Error(err)
+		return nil, err
 	}
-	if len(resp.Entries) < 1 {
-		lem.logger.Log.Error("Query was not successfull...")
-		return nil
-	}
-	lem.logger.Log.Notice("Result of the query:\n")
-	util.LDAPListObjectsInResult(resp)
-	return nil
+	return resp, nil
 }
 
-func (lem *LdapEnumModule) queryAllDomainControllers() error {
+func (lem *LdapEnumModule) queryAllDomainControllers() (*ldap.SearchResult, error) {
 	lem.logger.Log.Info("Querying for all Domain Controllers (DCs)...")
 	filter := util.ConstructLDAPFilter("(&(objectCategory=%s)(userAccountControl:1.2.840.113556.1.4.803:=%s))", []any{"computer", "8192"})
-	resp, err := transport.LDAPQuery(lem.conn, lem.baseDN, filter, []string{})
+	resp, err := lem.doQuery(filter)
 	if err != nil {
-		return err
+		lem.logger.Log.Error(err)
+		return nil, err
 	}
-	if len(resp.Entries) < 1 {
-		lem.logger.Log.Error("Query was not successfull...")
-		return nil
-	}
-	lem.logger.Log.Notice("Result of the query:\n")
-	util.LDAPListObjectsInResult(resp)
-	return nil
+	return resp, nil
 }
 
-func (lem *LdapEnumModule) queryAllWinServers() error {
+func (lem *LdapEnumModule) queryAllWinServers() (*ldap.SearchResult, error) {
 	lem.logger.Log.Info("Querying for all Windows Servers...")
 	filter := util.ConstructLDAPFilter("(&(objectCategory=%s)(operatingSystem=%s)(!userAccountControl:1.2.840.113556.1.4.803:=%s))", []any{"computer", "*server*", "8192"})
-	resp, err := transport.LDAPQuery(lem.conn, lem.baseDN, filter, []string{})
+	resp, err := lem.doQuery(filter)
 	if err != nil {
-		return err
+		lem.logger.Log.Error(err)
+		return nil, err
 	}
-	if len(resp.Entries) < 1 {
-		lem.logger.Log.Error("Query was not successfull...")
-		return nil
-	}
-	lem.logger.Log.Notice("Result of the query:\n")
-	util.LDAPListObjectsInResult(resp)
-	return nil
+	return resp, nil
 }
 
 func (lem *LdapEnumModule) RunAndQueryOnlyKerberoastableUsers() (map[string]string, error) {
 	lem.ConnectAndBind()
 	lem.logger.Log.Info("Querying for all Kerberoastable Users...")
 	filter := util.ConstructLDAPFilter("(&(objectClass=%s)(servicePrincipalName=%s)(!(cn=%s))(!(userAccountControl:1.2.840.113556.1.4.803:=%s)))", []any{"user", "*", "krbtgt", "2"})
-	resp, err := transport.LDAPQuery(lem.conn, lem.baseDN, filter, []string{})
+	resp, err := lem.doQuery(filter)
 	if err != nil {
-		return nil, fmt.Errorf("can't do a query: %v", err)
+		return nil, err
 	}
 	SPNs := make(map[string]string)
 	for _, entry := range resp.Entries {
@@ -484,5 +424,6 @@ func (lem *LdapEnumModule) RunAndQueryOnlyKerberoastableUsers() (map[string]stri
 			SPNs[sAMAccountName] = SPN
 		}
 	}
+	defer lem.conn.Close()
 	return SPNs, nil
 }
