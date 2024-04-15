@@ -4,6 +4,7 @@ import (
 	"encoding/hex"
 	"fmt"
 	"net"
+	"strings"
 
 	"github.com/hirochachacha/go-smb2"
 )
@@ -46,4 +47,13 @@ func SmbClose(conn net.Conn, s *smb2.Session) error {
 		return fmt.Errorf("can't close a session: %v", err)
 	}
 	return nil
+}
+
+func SmbHandleAuthError(err error) (bool, string) {
+	eString := err.Error()
+	if strings.Contains(eString, "The attempted logon is invalid") {
+		return true, "Invalid password"
+	} else {
+		return false, "Some unknown error"
+	}
 }
