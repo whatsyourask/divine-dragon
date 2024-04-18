@@ -155,7 +155,7 @@ func (lem *LdapEnumModule) ConnectAndBind() {
 		lem.logger.Log.Noticef("Connected to LDAP service successfully - %s:%s", lem.remoteHost, lem.remotePort)
 	}
 	if lem.username != "" {
-		err = transport.LDAPAuthenticatedBind(lem.conn, lem.domain, lem.username, lem.password)
+		err = transport.LDAPAuthenticatedBind(lem.conn, lem.username, lem.password)
 	} else {
 		err = transport.LDAPUnAuthenticatedBind(lem.conn, lem.domain)
 	}

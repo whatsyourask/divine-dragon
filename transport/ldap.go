@@ -39,7 +39,7 @@ func LDAPUnAuthenticatedBind(ldapCon *ldap.Conn, domain string) error {
 	return nil
 }
 
-func LDAPAuthenticatedBind(ldapCon *ldap.Conn, domain string, username string, password string) error {
+func LDAPAuthenticatedBind(ldapCon *ldap.Conn, username string, password string) error {
 	simpleBindRequest := ldap.NewSimpleBindRequest(username, password, []ldap.Control{})
 	_, err := ldapCon.SimpleBind(simpleBindRequest)
 	if err != nil {
