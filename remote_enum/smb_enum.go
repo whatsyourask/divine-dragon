@@ -57,7 +57,7 @@ func (sem *SmbEnumModule) Run() {
 	sem.conn = conn
 	sem.s = s
 	sem.enumerateSharenames()
-	sem.enumerateEechShareContent()
+	sem.enumerateEachShareContent()
 	sem.downloadAllFoundFiles()
 	defer transport.SmbClose(conn, s)
 }
@@ -79,7 +79,7 @@ func (sem *SmbEnumModule) enumerateSharenames() {
 	fmt.Println()
 }
 
-func (sem *SmbEnumModule) enumerateEechShareContent() {
+func (sem *SmbEnumModule) enumerateEachShareContent() {
 	sem.interestingFilePaths = make(map[string][]string)
 	for _, share := range sem.shares {
 		if share != "IPC$" && share != "NETLOGON" {
