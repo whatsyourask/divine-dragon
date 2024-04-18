@@ -52,10 +52,10 @@ func NewKerberosSession(options KerberosSessionOptions) (k KerberosSession, err 
 	if options.Domain == "" {
 		return k, fmt.Errorf("domain must not be empty")
 	}
-	if options.logger == nil {
-		logger := util.ASREPRoastingLogger(options.Verbose, "")
-		options.logger = &logger
-	}
+	// if options.logger == nil {
+	// 	logger := util.ASREPRoastingLogger(options.Verbose, "")
+	// 	options.logger = &logger
+	// }
 
 	realm := strings.ToUpper(options.Domain)
 	configstring := buildKrb5Template(realm, options.DomainController)
