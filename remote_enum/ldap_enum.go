@@ -46,9 +46,12 @@ func NewLdapEnumModule(domainOpt string, remoteHostOpt string, remotePortOpt str
 }
 
 func (lem *LdapEnumModule) Run() {
-	lem.ConnectAndBind()
+	err := lem.ConnectAndBind()
+	if err != nil {
+		lem.logger.Log.Info("Module completed with error. Exiting...")
+		return
+	}
 	resp, err := lem.queryAllDomainControllers()
-	util.LDAPListObjectsInResult(resp)
 	if err != nil {
 		lem.logger.Log.Error(err)
 		if strings.Contains(err.Error(), "000004DC") {
@@ -56,6 +59,7 @@ func (lem *LdapEnumModule) Run() {
 			return
 		}
 	}
+	util.LDAPListObjectsInResult(resp)
 	resp, err = lem.queryAllWinServers()
 	if err != nil {
 		lem.logger.Log.Error(err)
@@ -144,29 +148,33 @@ func (lem *LdapEnumModule) Run() {
 	defer lem.conn.Close()
 }
 
-func (lem *LdapEnumModule) ConnectAndBind() {
+func (lem *LdapEnumModule) ConnectAndBind() error {
 	conn, err := transport.LDAPConnect(lem.remoteHost, lem.remotePort)
 	lem.conn = conn
 	if err != nil {
 		lem.logger.Log.Error(err)
-		lem.logger.Log.Info("Exiting...")
-		return
+		return err
 	} else {
 		lem.logger.Log.Noticef("Connected to LDAP service successfully - %s:%s", lem.remoteHost, lem.remotePort)
 	}
 	if lem.username != "" {
+		lem.baseDN, err = util.ConstructBaseDN(lem.domain)
+		if err != nil {
+			lem.logger.Log.Error(err)
+			return err
+		}
 		err = transport.LDAPAuthenticatedBind(lem.conn, lem.username, lem.password)
 	} else {
 		err = transport.LDAPUnAuthenticatedBind(lem.conn, lem.domain)
 	}
 	if err != nil {
 		lem.logger.Log.Error(err)
-		lem.logger.Log.Info("Exiting...")
-		return
+		return err
 	} else {
 		lem.logger.Log.Notice("Bound to LDAP service successfully.")
 	}
 	lem.queryAllDomainControllers()
+	return nil
 }
 
 //
