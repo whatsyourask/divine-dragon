@@ -1,2 +1,2 @@
-remote_exploit/names.txt
-test
+*/*.txt
+*.txt

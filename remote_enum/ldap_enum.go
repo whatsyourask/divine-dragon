@@ -63,23 +63,27 @@ func (lem *LdapEnumModule) Run() {
 	resp, err = lem.queryAllWinServers()
 	if err != nil {
 		lem.logger.Log.Error(err)
+	} else {
+		util.LDAPListObjectsInResult(resp)
 	}
-	util.LDAPListObjectsInResult(resp)
 	resp, err = lem.queryAllOrgUnits()
 	if err != nil {
 		lem.logger.Log.Error(err)
+	} else {
+		util.LDAPListObjectsInResult(resp)
 	}
-	util.LDAPListObjectsInResult(resp)
 	resp, err = lem.queryAllUsers()
 	if err != nil {
 		lem.logger.Log.Error(err)
+	} else {
+		util.LDAPListObjectsInResult(resp)
 	}
-	util.LDAPListObjectsInResult(resp)
 	resp, err = lem.queryAllComputers()
 	if err != nil {
 		lem.logger.Log.Error(err)
+	} else {
+		util.LDAPListObjectsInResult(resp)
 	}
-	util.LDAPListObjectsInResult(resp)
 	resp, err = lem.queryAllGroups()
 	if err != nil {
 		lem.logger.Log.Error(err)
@@ -88,63 +92,75 @@ func (lem *LdapEnumModule) Run() {
 	resp, err = lem.queryAllAdmins()
 	if err != nil {
 		lem.logger.Log.Error(err)
+	} else {
+		util.LDAPListObjectsInResult(resp)
 	}
-	util.LDAPListObjectsInResult(resp)
 	resp, err = lem.queryDomainAdmins()
 	if err != nil {
 		lem.logger.Log.Error(err)
+	} else {
+		util.LDAPListObjectsInResult(resp)
 	}
-	util.LDAPListObjectsInResult(resp)
 	resp, err = lem.queryEnterpriseAdmins()
 	if err != nil {
 		lem.logger.Log.Error(err)
+	} else {
+		util.LDAPListObjectsInResult(resp)
 	}
-	util.LDAPListObjectsInResult(resp)
 	resp, err = lem.querySchemaAdmins()
 	if err != nil {
 		lem.logger.Log.Error(err)
+	} else {
+		util.LDAPListObjectsInResult(resp)
 	}
-	util.LDAPListObjectsInResult(resp)
 	resp, err = lem.queryKeyAdmins()
 	if err != nil {
 		lem.logger.Log.Error(err)
+	} else {
+		util.LDAPListObjectsInResult(resp)
 	}
-	util.LDAPListObjectsInResult(resp)
 	resp, err = lem.queryPrintOperators()
 	if err != nil {
 		lem.logger.Log.Error(err)
+	} else {
+		util.LDAPListObjectsInResult(resp)
 	}
-	util.LDAPListObjectsInResult(resp)
 	resp, err = lem.queryBackupOperators()
 	if err != nil {
 		lem.logger.Log.Error(err)
+	} else {
+		util.LDAPListObjectsInResult(resp)
 	}
-	util.LDAPListObjectsInResult(resp)
 	resp, err = lem.queryRemoteDesktopUsers()
 	if err != nil {
 		lem.logger.Log.Error(err)
+	} else {
+		util.LDAPListObjectsInResult(resp)
 	}
-	util.LDAPListObjectsInResult(resp)
 	resp, err = lem.queryRemoteManagementUsers()
 	if err != nil {
 		lem.logger.Log.Error(err)
+	} else {
+		util.LDAPListObjectsInResult(resp)
 	}
-	util.LDAPListObjectsInResult(resp)
 	resp, err = lem.queryASREPRoastableUsers()
 	if err != nil {
 		lem.logger.Log.Error(err)
+	} else {
+		util.LDAPListObjectsInResult(resp)
 	}
-	util.LDAPListObjectsInResult(resp)
 	resp, err = lem.queryKerberoastableUsers()
 	if err != nil {
 		lem.logger.Log.Error(err)
+	} else {
+		util.LDAPListObjectsInResult(resp)
 	}
-	util.LDAPListObjectsInResult(resp)
 	resp, err = lem.queryPasswordsInDescription()
 	if err != nil {
 		lem.logger.Log.Error(err)
+	} else {
+		util.LDAPListObjectsInResult(resp)
 	}
-	util.LDAPListObjectsInResult(resp)
 	defer lem.conn.Close()
 }
 
@@ -173,7 +189,6 @@ func (lem *LdapEnumModule) ConnectAndBind() error {
 	} else {
 		lem.logger.Log.Notice("Bound to LDAP service successfully.")
 	}
-	lem.queryAllDomainControllers()
 	return nil
 }
 
