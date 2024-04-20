@@ -58,7 +58,7 @@ func NewKerberosSession(options KerberosSessionOptions) (k KerberosSession, err 
 	Config, err := kconfig.NewFromString(configstring)
 	if options.Downgrade {
 		Config.LibDefaults.DefaultTktEnctypeIDs = []int32{23} // downgrade to arcfour-hmac-md5 for crackable AS-REPs
-		options.logger.Log.Info("Using downgraded encryption: arcfour-hmac-md5")
+		// options.logger.Log.Info("Using downgraded encryption: arcfour-hmac-md5")
 	}
 	if err != nil {
 		panic(err)
