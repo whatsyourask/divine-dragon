@@ -2,14 +2,15 @@ package main
 
 import (
 	"divine-dragon/cli"
+	"divine-dragon/remote_enum"
 )
 
 func main() {
 	// asrep_module := remote_exploit.NewASREPRoastingModule("htb.local", "10.129.95.210", false, false, true, "svc-alfresco.txt", "remote_exploit/names2.txt", "", 50, 0)
 	// asrep_module.Run()
 
-	// kerberos_enum_module := remote_enum.NewKerberosEnumUsersModule("htb.local", "10.129.95.210", false, true, false, "remote_exploit/names.txt", "", 50, 0)
-	// kerberos_enum_module.Run()
+	kerberos_enum_module := remote_enum.NewKerberosEnumUsersModule("htb.local", "10.129.95.210", false, true, false, "remote_exploit/names.txt", "", 50, 0)
+	kerberos_enum_module.Run()
 
 	// ldap_enum_module := remote_enum.NewLdapEnumModule("intelligence.htb", "10.129.15.150", "389", "Tiffany.Molina@intelligence.htb", "NewIntelligenceCorpUser9876", "", true, "")
 	// ldap_enum_module.Run()
