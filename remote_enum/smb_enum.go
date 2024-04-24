@@ -28,7 +28,7 @@ type SmbEnumModule struct {
 	logger               util.Logger
 }
 
-func NewSmbModuleNewLdapEnumModule(domainOpt string, remoteHostOpt string, remotePortOpt string,
+func NewSmbEnumModule(domainOpt string, remoteHostOpt string, remotePortOpt string,
 	usernameOpt string, passwordOpt string, hashOpt string, verboseOpt bool, logFileNameOpt string) *SmbEnumModule {
 	sem := SmbEnumModule{
 		remoteHost: remoteHostOpt,

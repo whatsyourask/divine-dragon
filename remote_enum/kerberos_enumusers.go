@@ -55,23 +55,23 @@ func NewKerberosEnumUsersModule(domainOpt string, dcOpt string, verboseOpt bool,
 	return &keum
 }
 
-func (ap *KerberosEnumUsersModule) setupSession() {
-	ap.kOptions = transport.KerberosSessionOptions{
-		Domain:           ap.domain,
-		DomainController: ap.dc,
-		Verbose:          ap.verbose,
-		SafeMode:         ap.safemode,
-		Downgrade:        ap.downgrade,
+func (keum *KerberosEnumUsersModule) setupSession() {
+	keum.kOptions = transport.KerberosSessionOptions{
+		Domain:           keum.domain,
+		DomainController: keum.dc,
+		Verbose:          keum.verbose,
+		SafeMode:         keum.safemode,
+		Downgrade:        keum.downgrade,
 	}
-	k, err := transport.NewKerberosSession(ap.kOptions)
+	k, err := transport.NewKerberosSession(keum.kOptions)
 	if err != nil {
-		ap.logger.Log.Error(err)
+		keum.logger.Log.Error(err)
 	}
-	ap.kSession = k
+	keum.kSession = k
 
-	ap.logger.Log.Info("Using KDC(s):")
-	for _, v := range ap.kSession.Kdcs {
-		ap.logger.Log.Infof("\t%s\n", v)
+	keum.logger.Log.Info("Using KDC(s):")
+	for _, v := range keum.kSession.Kdcs {
+		keum.logger.Log.Infof("\t%s\n", v)
 	}
 }
 
