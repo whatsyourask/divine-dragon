@@ -227,8 +227,8 @@ func SmbSprayLogger(verbose bool, logFileName string) Logger {
 	return Logger{log}
 }
 
-func StageOnePayloadGeneratorLogger(verbose bool, logFileName string) Logger {
-	log := logging.MustGetLogger("stage_one_payload_generator")
+func PayloadGeneratorLogger(verbose bool, logFileName string) Logger {
+	log := logging.MustGetLogger("payload_generator")
 	format := logging.MustStringFormatter(
 		`%{color}%{time:2006/01/02 15:04:05} >  %{message}%{color:reset}`,
 	)

