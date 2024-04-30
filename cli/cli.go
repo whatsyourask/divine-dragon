@@ -2,6 +2,7 @@ package cli
 
 import (
 	"bufio"
+	"divine-dragon/payload_generator"
 	"divine-dragon/remote_enum"
 	"divine-dragon/remote_exploit"
 	"fmt"
@@ -20,11 +21,9 @@ type ModuleSettings struct {
 const defaultLabel = "(divine-dragon) / "
 
 type ToolCommandLineInterface struct {
-	generalCommandsMethods map[string]func()
-	label                  string
-	selectedModule         ModuleSettings
-	// commandBuffer          []string
-	// moduleCommandsMethods  map[string]func()
+	generalCommandsMethods   map[string]func()
+	label                    string
+	selectedModule           ModuleSettings
 	modulesSettings          []ModuleSettings
 	useFormatCommand         string
 	infoGeneralFormatCommand string
@@ -33,7 +32,6 @@ type ToolCommandLineInterface struct {
 	showModuleOptionsCommand string
 	setOptionsFormatCommand  string
 	runModuleCommand         string
-	// setModuleOptionsCommandsMethods map[string]func()
 }
 
 func NewToolCommandLineInterface() (*ToolCommandLineInterface, error) {
@@ -153,22 +151,18 @@ func NewToolCommandLineInterface() (*ToolCommandLineInterface, error) {
 			Run: tcli.runSmbPasswordSprayingModule,
 		},
 		{
-			Name: "payload_generator/payload_generator",
+			Name: "payload_generator/shell",
 			Info: "Module to generate Bind/Reverse shell payload in go binary.",
 			Options: map[string]string{
-				"DOMAIN":         "",
-				"REMOTE_HOST":    "",
-				"REMOTE_PORT":    "445",
-				"USERNAMES_LIST": "",
-				"PASSWORD":       "",
-				"VERBOSE":        "false",
-				"LOG_FILE":       "",
-				"THREADS":        "10",
-				"DELAY":          "0",
+				"HOST":            "",
+				"PORT":            "4444",
+				"SHELL_TYPE":      "",
+				"PLATFORM":        "windows",
+				"ARCH":            "amd64",
+				"EXECUTABLE_NAME": "payload.exe",
 			},
-			Run: tcli.runStageOnePayloadGenerator,
+			Run: tcli.runPayloadGeneratorModule,
 		},
-	}
 	}
 	// fmt.Println(tcli.modulesSettings)
 	tcli.generalCommandsMethods = map[string]func(){
@@ -587,5 +581,27 @@ func (tcli *ToolCommandLineInterface) runSmbPasswordSprayingModule() {
 		)
 		// fmt.Println("Running")
 		ssm.Run()
+	}
+}
+
+func (tcli *ToolCommandLineInterface) runPayloadGeneratorModule() {
+	var allSet bool = true
+	for _, moduleValue := range tcli.selectedModule.Options {
+		if moduleValue == "" {
+			allSet = false
+			break
+		}
+	}
+	if allSet {
+		pg := payload_generator.NewPayloadGenerator(
+			tcli.selectedModule.Options["HOST"],
+			tcli.selectedModule.Options["PORT"],
+			tcli.selectedModule.Options["SHELL_TYPE"],
+			tcli.selectedModule.Options["PLATFORM"],
+			tcli.selectedModule.Options["ARCH"],
+			tcli.selectedModule.Options["EXECUTABLE_NAME"],
+		)
+		// fmt.Println("Running")
+		pg.Run()
 	}
 }

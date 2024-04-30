@@ -38,7 +38,8 @@ func (pg *PayloadGenerator) Run() {
 	if err != nil {
 		pg.logger.Log.Error(err)
 	}
-	fmt.Println(payloadSource)
+	pg.logger.Log.Noticef("Your payload for shell was generated in file %s:", pg.executableName)
+	pg.logger.Log.Noticef("See the source code below:\n%s", payloadSource)
 	err = pg.compilePayload(payloadSource)
 	if err != nil {
 		pg.logger.Log.Error(err)
@@ -56,7 +57,6 @@ func (pg *PayloadGenerator) preparePayloadSource() (string, error) {
 	for _, funcPattern := range funcPatterns {
 		payloadSource = strings.Replace(payloadSource, funcPattern, util.RandString(util.RandInt()), -1)
 	}
-	payloadSource = strings.Replace(payloadSource, "EXECUTABLENAME", pg.executableName, -1)
 	return payloadSource, nil
 }
 
