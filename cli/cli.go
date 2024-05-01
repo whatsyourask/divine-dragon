@@ -5,6 +5,7 @@ import (
 	"divine-dragon/payload_generator"
 	"divine-dragon/remote_enum"
 	"divine-dragon/remote_exploit"
+	"divine-dragon/util"
 	"fmt"
 	"os"
 	"strconv"
@@ -151,7 +152,7 @@ func NewToolCommandLineInterface() (*ToolCommandLineInterface, error) {
 			Run: tcli.runSmbPasswordSprayingModule,
 		},
 		{
-			Name: "payload_generator/shell",
+			Name: "payload_generator/payload_generator",
 			Info: "Module to generate Bind/Reverse shell payload in go binary.",
 			Options: map[string]string{
 				"HOST":            "",
@@ -162,6 +163,15 @@ func NewToolCommandLineInterface() (*ToolCommandLineInterface, error) {
 				"EXECUTABLE_NAME": "payload.exe",
 			},
 			Run: tcli.runPayloadGeneratorModule,
+		},
+		{
+			Name: "c2",
+			Info: "Module to start C2 server and operator's console.",
+			Options: map[string]string{
+				"HOST": "127.0.0.1",
+				"PORT": "8888",
+			},
+			Run: tcli.runC2Module,
 		},
 	}
 	// fmt.Println(tcli.modulesSettings)
@@ -185,14 +195,10 @@ func (tcli *ToolCommandLineInterface) Run() {
 	scanner := bufio.NewScanner(os.Stdin)
 	fmt.Print(tcli.label)
 	for scanner.Scan() {
-		// // fmt.Print(tcli.label)
-		// // fmt.Scanln(&command)
 		command := scanner.Text()
-		// fmt.Println("unformated command: ", command)
-		formattedCommand := tcli.formatCommand(command)
+		formattedCommand := util.FormatCommand(command)
 		err := tcli.validateGeneralCommand(formattedCommand)
 		if err == nil {
-			// fmt.Println("formated command: " + formatedCommand)
 			if strings.Contains(formattedCommand, "use ") {
 				for _, moduleSettings := range tcli.modulesSettings {
 					if formattedCommand == fmt.Sprintf(tcli.useFormatCommand, moduleSettings.Name) {
@@ -207,12 +213,10 @@ func (tcli *ToolCommandLineInterface) Run() {
 					}
 				}
 			} else if strings.Contains(formattedCommand, "show info ") {
-				// fmt.Println("hello")
 				for _, moduleSettings := range tcli.modulesSettings {
 					if formattedCommand == fmt.Sprintf(tcli.infoGeneralFormatCommand, moduleSettings.Name) {
 						splitedCommand := strings.Split(command, " ")
 						moduleName := splitedCommand[2]
-						// fmt.Println(moduleName)
 						tcli.showInfo(moduleName)
 					}
 				}
@@ -238,18 +242,6 @@ func (tcli *ToolCommandLineInterface) printLogo() {
 #     #  #    # #    #  #    ## #          #     # #    #  #     # #     # #     # #    ## 
 ######  ###    #    ### #     # #######    ######  #     # #     #  #####  ####### #     #`)
 	fmt.Println("==========================================================================================")
-}
-
-func (tcli *ToolCommandLineInterface) formatCommand(command string) string {
-	formattedCommand := strings.Trim(command, " ")
-	formattedCommandSlice := strings.Split(formattedCommand, " ")
-	newSlice := []string{}
-	for _, part := range formattedCommandSlice {
-		if part != " " {
-			newSlice = append(newSlice, part)
-		}
-	}
-	return strings.Join(newSlice, " ")
 }
 
 func (tcli *ToolCommandLineInterface) validateGeneralCommand(command string) error {
@@ -301,11 +293,9 @@ func (tcli *ToolCommandLineInterface) configModule() {
 	scanner := bufio.NewScanner(os.Stdin)
 	for scanner.Scan() {
 		command := scanner.Text()
-		formattedCommand := tcli.formatCommand(command)
+		formattedCommand := util.FormatCommand(command)
 		err := tcli.validateModuleCommand(formattedCommand)
-		// fmt.Println(err.Error())
 		if err == nil {
-			// fmt.Println(formattedCommand)
 			if strings.Contains(formattedCommand, "set ") {
 				optionValue := strings.Split(formattedCommand, " ")
 				option := optionValue[1]
@@ -593,7 +583,7 @@ func (tcli *ToolCommandLineInterface) runPayloadGeneratorModule() {
 		}
 	}
 	if allSet {
-		pg := payload_generator.NewPayloadGenerator(
+		pg := payload_generator.NewPayloadGeneratorModule(
 			tcli.selectedModule.Options["HOST"],
 			tcli.selectedModule.Options["PORT"],
 			tcli.selectedModule.Options["SHELL_TYPE"],
@@ -603,5 +593,23 @@ func (tcli *ToolCommandLineInterface) runPayloadGeneratorModule() {
 		)
 		// fmt.Println("Running")
 		pg.Run()
+	}
+}
+
+func (tcli *ToolCommandLineInterface) runC2Module() {
+	var allSet bool = true
+	for _, moduleValue := range tcli.selectedModule.Options {
+		if moduleValue == "" {
+			allSet = false
+			break
+		}
+	}
+	if allSet {
+		c2cli, err := NewC2CommandLineInterface()
+		if err != nil {
+			fmt.Println(fmt.Errorf("can't start C2 console: %v", err))
+			return
+		}
+		c2cli.Run(tcli.selectedModule.Options["HOST"], tcli.selectedModule.Options["PORT"])
 	}
 }

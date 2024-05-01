@@ -9,7 +9,7 @@ import (
 	"github.com/gobuffalo/packr"
 )
 
-type PayloadGenerator struct {
+type PayloadGeneratorModule struct {
 	host           string
 	port           string
 	shellType      string
@@ -20,8 +20,8 @@ type PayloadGenerator struct {
 	logger util.Logger
 }
 
-func NewPayloadGenerator(hostOpt string, portOpt string, shellTypeOpt string, platformOpt string, archOpt string, executableNameOpt string) *PayloadGenerator {
-	pg := PayloadGenerator{
+func NewPayloadGeneratorModule(hostOpt string, portOpt string, shellTypeOpt string, platformOpt string, archOpt string, executableNameOpt string) *PayloadGeneratorModule {
+	pg := PayloadGeneratorModule{
 		host:           hostOpt,
 		port:           portOpt,
 		shellType:      shellTypeOpt,
@@ -33,7 +33,7 @@ func NewPayloadGenerator(hostOpt string, portOpt string, shellTypeOpt string, pl
 	return &pg
 }
 
-func (pg *PayloadGenerator) Run() {
+func (pg *PayloadGeneratorModule) Run() {
 	payloadSource, err := pg.preparePayloadSource()
 	if err != nil {
 		pg.logger.Log.Error(err)
@@ -46,7 +46,7 @@ func (pg *PayloadGenerator) Run() {
 	}
 }
 
-func (pg *PayloadGenerator) preparePayloadSource() (string, error) {
+func (pg *PayloadGeneratorModule) preparePayloadSource() (string, error) {
 	payloadSource, err := packr.NewBox("./templates/").FindString(pg.shellType + ".go")
 	if err != nil {
 		return "", fmt.Errorf("can't get template from templates/ folder: %v", err)
@@ -60,7 +60,7 @@ func (pg *PayloadGenerator) preparePayloadSource() (string, error) {
 	return payloadSource, nil
 }
 
-func (pg *PayloadGenerator) compilePayload(payloadSource string) error {
+func (pg *PayloadGeneratorModule) compilePayload(payloadSource string) error {
 	payloadSourceFileName := util.RandString(util.RandInt()) + ".go"
 	err := util.WriteToFile(payloadSourceFileName, payloadSource)
 	if err != nil {
