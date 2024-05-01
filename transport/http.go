@@ -13,12 +13,14 @@ import (
 )
 
 type C2Server struct {
-	host         string
-	port         string
-	r            *gin.Engine
-	identityKey  string
-	activeAgents []Agent
-	agentJobs    map[string]Job
+	host                 string
+	port                 string
+	r                    *gin.Engine
+	agentIdentityKey     string
+	operatorIdentityKey  string
+	operatorPasswordHash string
+	activeAgents         []Agent
+	agentJobs            map[string]Job
 }
 
 type connectAgent struct {
@@ -37,10 +39,31 @@ type Job struct {
 	queue []string
 }
 
-func NewC2Server(hostOpt, portOpt string) (*C2Server, error) {
+type login struct {
+	Username string `form:"username" json:"username" binding:"required"`
+	Password string `form:"password" json:"password" binding:"required"`
+}
+
+type Operator struct {
+	Username string
+}
+
+func NewC2Server(hostOpt, portOpt, password string) (*C2Server, error) {
 	c2s := C2Server{
 		host: hostOpt,
 		port: portOpt,
+	}
+	ca, err := util.NewRootCertificateAuthority()
+	if err != nil {
+		return nil, fmt.Errorf("\ncan't create a new CA: %v", err)
+	}
+	err = ca.CreateTLSCert(c2s.host)
+	if err != nil {
+		return nil, fmt.Errorf("\ncan't generate a TLS cert: %v", err)
+	}
+	err = ca.DumpAll()
+	if err != nil {
+		return nil, fmt.Errorf("\ncan't dump certs and keys to a folder: %v", err)
 	}
 	gin.SetMode(gin.ReleaseMode)
 	gin.DisableConsoleColor()
@@ -50,46 +73,64 @@ func NewC2Server(hostOpt, portOpt string) (*C2Server, error) {
 	if err != nil {
 		return nil, err
 	}
+	c2s.operatorPasswordHash, err = util.HashPassword(password)
+	if err != nil {
+		return nil, err
+	}
 	c2s.r = r
 	return &c2s, nil
 }
 
 func (c2s *C2Server) setupRouter() (*gin.Engine, error) {
 	r := gin.Default()
-	authMiddleware, err := c2s.initJWTMiddleware()
+	authAgentMiddleware, err := c2s.initAgentJWTMiddleware()
 	if err != nil {
 		return nil, err
 	}
 
-	r.POST("/connect", authMiddleware.LoginHandler)
+	r.POST("/connect", authAgentMiddleware.LoginHandler)
 
-	r.NoRoute(authMiddleware.MiddlewareFunc(), func(c *gin.Context) {
+	r.NoRoute(authAgentMiddleware.MiddlewareFunc(), func(c *gin.Context) {
 		c.JSON(404, gin.H{"code": "PAGE_NOT_FOUND", "message": "Page not found"})
 	})
 
-	auth := r.Group("/agent")
-	auth.GET("/refresh_token", authMiddleware.RefreshHandler)
-	auth.Use(authMiddleware.MiddlewareFunc())
+	agent := r.Group("/agent")
+	agent.GET("/refresh_token", authAgentMiddleware.RefreshHandler)
+	agent.Use(authAgentMiddleware.MiddlewareFunc())
 	{
-		auth.GET("/jobs", c2s.jobsHandler)
-		auth.GET("/payload", c2s.payloadHandler)
+		agent.GET("/jobs", c2s.jobsHandler)
+		agent.GET("/payload", c2s.payloadHandler)
+	}
+
+	authOperatorMiddleware, err := c2s.initOperatorJWTMiddleware()
+	if err != nil {
+		return nil, err
+	}
+
+	r.POST("/login", authOperatorMiddleware.LoginHandler)
+
+	operator := r.Group("/operator")
+	operator.GET("/refresh_token", authOperatorMiddleware.RefreshHandler)
+	operator.Use(authOperatorMiddleware.MiddlewareFunc())
+	{
+		operator.GET("/agents/", c2s.agentsHandler)
 	}
 	return r, nil
 }
 
-func (c2s *C2Server) initJWTMiddleware() (*jwt.GinJWTMiddleware, error) {
-	c2s.identityKey = "Uid"
+func (c2s *C2Server) initAgentJWTMiddleware() (*jwt.GinJWTMiddleware, error) {
+	c2s.agentIdentityKey = "Uid"
 	secret := util.RandString(256)
 	authMiddleware, err := jwt.New(&jwt.GinJWTMiddleware{
-		Realm:       "C2",
+		Realm:       "C2-agent",
 		Key:         []byte(secret),
 		Timeout:     time.Hour,
 		MaxRefresh:  time.Hour,
-		IdentityKey: c2s.identityKey,
+		IdentityKey: c2s.agentIdentityKey,
 		PayloadFunc: func(data interface{}) jwt.MapClaims {
 			if v, ok := data.(*Agent); ok {
 				return jwt.MapClaims{
-					c2s.identityKey: v.Uid,
+					c2s.agentIdentityKey: v.Uid,
 				}
 			}
 			return jwt.MapClaims{}
@@ -97,7 +138,7 @@ func (c2s *C2Server) initJWTMiddleware() (*jwt.GinJWTMiddleware, error) {
 		IdentityHandler: func(c *gin.Context) interface{} {
 			claims := jwt.ExtractClaims(c)
 			for _, agent := range c2s.activeAgents {
-				if agent.Uid == claims[c2s.identityKey].(string) {
+				if agent.Uid == claims[c2s.agentIdentityKey].(string) {
 					return &agent
 				}
 			}
@@ -145,7 +186,6 @@ func (c2s *C2Server) initJWTMiddleware() (*jwt.GinJWTMiddleware, error) {
 		TokenLookup:   "header: Authorization, query: token, cookie: jwt",
 		TokenHeadName: "Bearer",
 
-		// TimeFunc provides the current time. You can override it to use another time value. This is useful for testing or if your server uses a different time zone than your tokens.
 		TimeFunc: time.Now,
 	})
 	if err != nil {
@@ -156,9 +196,9 @@ func (c2s *C2Server) initJWTMiddleware() (*jwt.GinJWTMiddleware, error) {
 
 func (c2s *C2Server) jobsHandler(c *gin.Context) {
 	claims := jwt.ExtractClaims(c)
-	agent, _ := c.Get(c2s.identityKey)
+	agent, _ := c.Get(c2s.agentIdentityKey)
 	c.JSON(200, gin.H{
-		"uid":      claims[c2s.identityKey],
+		"uid":      claims[c2s.agentIdentityKey],
 		"hostname": agent.(*Agent).Hostname,
 		"ip":       agent.(*Agent).Ip,
 	})
@@ -166,30 +206,86 @@ func (c2s *C2Server) jobsHandler(c *gin.Context) {
 
 func (c2s *C2Server) payloadHandler(c *gin.Context) {
 	claims := jwt.ExtractClaims(c)
-	agent, _ := c.Get(c2s.identityKey)
+	agent, _ := c.Get(c2s.agentIdentityKey)
 	c.JSON(200, gin.H{
-		"uid":      claims[c2s.identityKey],
+		"uid":      claims[c2s.agentIdentityKey],
 		"hostname": agent.(*Agent).Hostname,
 		"ip":       agent.(*Agent).Ip,
 	})
 }
 
+func (c2s *C2Server) initOperatorJWTMiddleware() (*jwt.GinJWTMiddleware, error) {
+	c2s.operatorIdentityKey = "id"
+	secret := util.RandString(256)
+	authMiddleware, err := jwt.New(&jwt.GinJWTMiddleware{
+		Realm:       "C2-operator",
+		Key:         []byte(secret),
+		Timeout:     time.Hour,
+		MaxRefresh:  time.Hour,
+		IdentityKey: c2s.operatorIdentityKey,
+		PayloadFunc: func(data interface{}) jwt.MapClaims {
+			if v, ok := data.(*Operator); ok {
+				return jwt.MapClaims{
+					c2s.operatorIdentityKey: v.Username,
+				}
+			}
+			return jwt.MapClaims{}
+		},
+		IdentityHandler: func(c *gin.Context) interface{} {
+			claims := jwt.ExtractClaims(c)
+			return &Operator{
+				Username: claims[c2s.operatorIdentityKey].(string),
+			}
+		},
+		Authenticator: func(c *gin.Context) (interface{}, error) {
+			var loginVals login
+			if err := c.ShouldBind(&loginVals); err != nil {
+				return "", jwt.ErrMissingLoginValues
+			}
+			userID := loginVals.Username
+			password := loginVals.Password
+
+			if userID == "c2operator" && util.CheckPasswordHash(password, c2s.operatorPasswordHash) {
+				return &Operator{
+					Username: userID,
+				}, nil
+			}
+
+			return nil, jwt.ErrFailedAuthentication
+		},
+		Authorizator: func(data interface{}, c *gin.Context) bool {
+			if v, ok := data.(*Operator); ok && v.Username == "c2operator" {
+				return true
+			}
+
+			return false
+		},
+		Unauthorized: func(c *gin.Context, code int, message string) {
+			c.JSON(code, gin.H{
+				"code":    code,
+				"message": message,
+			})
+		},
+		TokenLookup:   "header: Authorization, query: token, cookie: jwt",
+		TokenHeadName: "Bearer",
+
+		// TimeFunc provides the current time. You can override it to use another time value. This is useful for testing or if your server uses a different time zone than your tokens.
+		TimeFunc: time.Now,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("can't initialize a middleware: %v", err)
+	}
+	return authMiddleware, nil
+}
+
+func (c2s *C2Server) agentsHandler(c *gin.Context) {
+	c.JSON(200, c2s.activeAgents)
+}
+
 func (c2s *C2Server) Run() error {
-	ca, err := util.NewRootCertificateAuthority()
+	err := c2s.r.RunTLS(c2s.host+":"+c2s.port, "data/c2/"+c2s.host+".crt", "data/c2/"+c2s.host+".key")
 	if err != nil {
-		return fmt.Errorf("can't create a new CA: %v", err)
-	}
-	err = ca.CreateTLSCert(c2s.host)
-	if err != nil {
-		return fmt.Errorf("can't generate a TLS cert: %v", err)
-	}
-	err = ca.DumpAll()
-	if err != nil {
-		return fmt.Errorf("can't dump certs and keys to a folder: %v", err)
-	}
-	err = c2s.r.RunTLS(c2s.host+":"+c2s.port, "data/c2/"+c2s.host+".crt", "data/c2/"+c2s.host+".key")
-	if err != nil {
-		return fmt.Errorf("can't start an HTTP server: %v", err)
+		return fmt.Errorf("\ncan't start an HTTP server: %v", err)
 	}
 	return nil
 }
