@@ -2,6 +2,7 @@ package cli
 
 import (
 	"bufio"
+	"divine-dragon/c2"
 	"divine-dragon/payload_generator"
 	"divine-dragon/remote_enum"
 	"divine-dragon/remote_exploit"
@@ -33,6 +34,7 @@ type ToolCommandLineInterface struct {
 	showModuleOptionsCommand string
 	setOptionsFormatCommand  string
 	runModuleCommand         string
+	moduleGeneralCommand     []string
 }
 
 func NewToolCommandLineInterface() (*ToolCommandLineInterface, error) {
@@ -166,7 +168,7 @@ func NewToolCommandLineInterface() (*ToolCommandLineInterface, error) {
 		},
 		{
 			Name: "c2",
-			Info: "Module to start C2 server and operator's console.",
+			Info: "Module to start C2 server.",
 			Options: map[string]string{
 				"HOST": "127.0.0.1",
 				"PORT": "8888",
@@ -182,11 +184,12 @@ func NewToolCommandLineInterface() (*ToolCommandLineInterface, error) {
 	}
 	tcli.useFormatCommand = "use %s"
 	tcli.infoGeneralFormatCommand = "show info %s"
-	tcli.backModuleCommand = "back"
-	tcli.infoModuleFormatCommand = "info"
-	tcli.showModuleOptionsCommand = "show options"
+	tcli.moduleGeneralCommand = []string{"back", "info", "show options", "run", "quit", "exit"}
+	// tcli.backModuleCommand = "back"
+	// tcli.infoModuleFormatCommand = "info"
+	// tcli.showModuleOptionsCommand = "show options"
 	tcli.setOptionsFormatCommand = "set %s %s"
-	tcli.runModuleCommand = "run"
+	// tcli.runModuleCommand = "run"
 	return &tcli, nil
 }
 
@@ -315,23 +318,22 @@ func (tcli *ToolCommandLineInterface) configModule() {
 			if strings.Contains(formattedCommand, "run") {
 				tcli.runModule()
 			}
+			if strings.Contains(formattedCommand, "exit") || strings.Contains(formattedCommand, "quit") {
+				tcli.exit()
+			}
+			if strings.Contains(formattedCommand, "info") {
+				tcli.showInfo(tcli.selectedModule.Name)
+			}
 		}
 		fmt.Print(tcli.label)
 	}
 }
 
 func (tcli *ToolCommandLineInterface) validateModuleCommand(command string) error {
-	if command == tcli.backModuleCommand {
-		return nil
-	}
-	if command == tcli.infoModuleFormatCommand {
-		return nil
-	}
-	if command == tcli.showModuleOptionsCommand {
-		return nil
-	}
-	if command == tcli.runModuleCommand {
-		return nil
+	for _, moduleCommand := range tcli.moduleGeneralCommand {
+		if command == moduleCommand {
+			return nil
+		}
 	}
 	commandSlice := strings.Split(command, " ")
 	if len(commandSlice) > 2 {
@@ -605,11 +607,10 @@ func (tcli *ToolCommandLineInterface) runC2Module() {
 		}
 	}
 	if allSet {
-		c2cli, err := NewC2CommandLineInterface()
-		if err != nil {
-			fmt.Println(fmt.Errorf("can't start C2 console: %v", err))
-			return
-		}
-		c2cli.Run(tcli.selectedModule.Options["HOST"], tcli.selectedModule.Options["PORT"])
+		c2m := c2.NewC2Module(
+			tcli.selectedModule.Options["HOST"],
+			tcli.selectedModule.Options["PORT"],
+		)
+		c2m.Run()
 	}
 }
