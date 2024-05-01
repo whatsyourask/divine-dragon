@@ -19,3 +19,8 @@ func RandString(n int) string {
 	}
 	return string(b)
 }
+
+func RandInt10000() int {
+	rand.Seed(time.Now().UnixNano())
+	return rand.Intn(10000)
+}
