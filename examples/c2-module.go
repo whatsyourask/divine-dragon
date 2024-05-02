@@ -1,6 +1,8 @@
 package main
 
-import "divine-dragon/c2"
+import (
+	"divine-dragon/c2"
+)
 
 func main() {
 	c2m := c2.NewC2Module(
