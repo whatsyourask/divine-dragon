@@ -6,6 +6,7 @@ import (
 	"divine-dragon/payload_generator"
 	"divine-dragon/remote_enum"
 	"divine-dragon/remote_exploit"
+	"divine-dragon/transport"
 	"divine-dragon/util"
 	"fmt"
 	"os"
@@ -35,6 +36,8 @@ type ToolCommandLineInterface struct {
 	setOptionsFormatCommand  string
 	runModuleCommand         string
 	moduleGeneralCommand     []string
+	c2m                      *c2.C2Module
+	agents                   []transport.Agent
 }
 
 func NewToolCommandLineInterface() (*ToolCommandLineInterface, error) {
@@ -181,15 +184,18 @@ func NewToolCommandLineInterface() (*ToolCommandLineInterface, error) {
 		"list modules": tcli.listModules,
 		"quit":         tcli.exit,
 		"exit":         tcli.exit,
+		"sessions":     tcli.checkSessions,
 	}
 	tcli.useFormatCommand = "use %s"
 	tcli.infoGeneralFormatCommand = "show info %s"
-	tcli.moduleGeneralCommand = []string{"back", "info", "show options", "run", "quit", "exit"}
+	tcli.moduleGeneralCommand = []string{"back", "info", "show options", "run", "quit", "exit", "sessions"}
 	// tcli.backModuleCommand = "back"
 	// tcli.infoModuleFormatCommand = "info"
 	// tcli.showModuleOptionsCommand = "show options"
 	tcli.setOptionsFormatCommand = "set %s %s"
 	// tcli.runModuleCommand = "run"
+	tcli.c2m = nil
+	tcli.agents = nil
 	return &tcli, nil
 }
 
@@ -304,7 +310,6 @@ func (tcli *ToolCommandLineInterface) configModule() {
 				option := optionValue[1]
 				value := optionValue[2]
 				tcli.setModuleOption(option, value)
-				// fmt.Println(tcli.selectedModule.Options)
 			}
 			if strings.Contains(formattedCommand, "back") {
 				tcli.label = defaultLabel + ">>> "
@@ -312,7 +317,6 @@ func (tcli *ToolCommandLineInterface) configModule() {
 				break
 			}
 			if strings.Contains(formattedCommand, "show options") {
-				// fmt.Println("here")
 				tcli.showModuleOptions()
 			}
 			if strings.Contains(formattedCommand, "run") {
@@ -323,6 +327,9 @@ func (tcli *ToolCommandLineInterface) configModule() {
 			}
 			if strings.Contains(formattedCommand, "info") {
 				tcli.showInfo(tcli.selectedModule.Name)
+			}
+			if strings.Contains(formattedCommand, "sessions") {
+				tcli.checkSessions()
 			}
 		}
 		fmt.Print(tcli.label)
@@ -612,5 +619,33 @@ func (tcli *ToolCommandLineInterface) runC2Module() {
 			tcli.selectedModule.Options["PORT"],
 		)
 		c2m.Run()
+		tcli.c2m = c2m
+	}
+}
+
+func (tcli *ToolCommandLineInterface) checkSessions() {
+	if tcli.c2m != nil {
+		agents := tcli.c2m.GetAgents()
+		tcli.agents = agents
+		out := ""
+		if len(agents) > 0 {
+			for _, agent := range agents {
+				out += fmt.Sprintf("%16s| %15s| %s", agent.Uuid, agent.Hostname, agent.Username)
+			}
+			fmt.Println()
+			fmt.Println("\tActive agent sessions")
+			fmt.Println("=================================================")
+			fmt.Println("  Agent UUID    |     Hostname   |     Username    ")
+			fmt.Println(out)
+			fmt.Println()
+		} else {
+			fmt.Println()
+			fmt.Println("C2 server instance is active. But nobody is connected yet.")
+			fmt.Println()
+		}
+	} else {
+		fmt.Println()
+		fmt.Println("No active C2 server instances. So, you don't have any sessions.")
+		fmt.Println()
 	}
 }
