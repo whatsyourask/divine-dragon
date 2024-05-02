@@ -63,18 +63,9 @@ func (c2m *C2Module) protect(f func() error) {
 	}
 }
 
-func (c2m *C2Module) GetAgents() string {
+func (c2m *C2Module) GetAgents() []transport.Agent {
 	agents := c2m.getAgents()
-	out := ""
-	for _, agent := range agents {
-		out += agent.Uuid
-		out += "   "
-		out += agent.Hostname
-		out += "   "
-		out += agent.Ip
-		out += "\n"
-	}
-	return out
+	return agents
 }
 
 func (c2m *C2Module) getAgents() []transport.Agent {
