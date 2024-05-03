@@ -3,3 +3,5 @@
 *.key
 *.log
 *.py
+*.exe
+.DS_Store
