@@ -37,18 +37,18 @@ func NewC2Module(localHostOpt, localPortOpt string) *C2Module {
 		return nil
 	}
 	c2m.c2s = c2
-	c2m.apiUrl = "https://" + c2m.localHost + ":" + c2m.localPort
+	c2m.apiUrl = "https://" + "127.0.0.1" + ":" + c2m.localPort
 	return &c2m
 }
 
 func (c2m *C2Module) Run() {
 	c2m.logger.Log.Infof("A new C2 server started on %s:%s", c2m.localHost, c2m.localPort)
 	go c2m.protect(c2m.c2s.Run)
-	err := c2m.operatorLogin()
-	if err != nil {
-		c2m.logger.Log.Error(err)
-	}
-	fmt.Println(c2m.GetAgents())
+	// err := c2m.operatorLogin()
+	// if err != nil {
+	// 	c2m.logger.Log.Error(err)
+	// }
+	// fmt.Println(c2m.GetAgents())
 }
 
 func (c2m *C2Module) protect(f func() error) {
