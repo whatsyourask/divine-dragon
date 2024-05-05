@@ -187,7 +187,7 @@ func (c2m *C2Module) AddJob(agentUuid string, payloadFilename string) error {
 
 func (c2m *C2Module) GetAllAgentJobs(agentUuid string) ([]string, map[string]bool, map[string]string) {
 	c2m.checkAuthTokenExpiration()
-	req, err := http.NewRequest("GET", c2m.apiUrl+"/agents/"+agentUuid+"/jobs", nil)
+	req, err := http.NewRequest("GET", c2m.apiUrl+"/operator/agents/"+agentUuid+"/jobs", nil)
 	if err != nil {
 		c2m.logger.Log.Errorf("can't create a new request: %v", err)
 		return nil, nil, nil
@@ -277,4 +277,36 @@ func (c2m *C2Module) checkAuthTokenExpiration() {
 			}
 		}
 	}
+}
+
+func (c2m *C2Module) GetAgentLogs(agentUuid string) [][]string {
+	c2m.checkAuthTokenExpiration()
+	req, err := http.NewRequest("GET", c2m.apiUrl+"/operator/agents/"+agentUuid+"/logs", nil)
+	if err != nil {
+		c2m.logger.Log.Errorf("can't create a new request: %v", err)
+		return nil
+	}
+	req.Header.Set("Authorization", "Bearer "+c2m.authorizationToken)
+	client := &http.Client{
+		Transport: &http.Transport{
+			TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
+		},
+	}
+	resp, err := client.Do(req)
+	if err != nil {
+		c2m.logger.Log.Errorf("can't perform a request: %v", err)
+		return nil
+	}
+	respBody, err := io.ReadAll(resp.Body)
+	if err != nil {
+		c2m.logger.Log.Errorf("can't do io.ReadAll: %v", err)
+		return nil
+	}
+	var logs [][]string
+	err = json.Unmarshal(respBody, &logs)
+	if err != nil {
+		c2m.logger.Log.Errorf("can't unmarshal a JSON in response: %v", err)
+		return nil
+	}
+	return logs
 }
