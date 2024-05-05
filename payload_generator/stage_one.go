@@ -67,6 +67,7 @@ func (sopgm *StageOnePayloadGeneratorModule) preparePayloadSource() (string, err
 			"RUNJOB",
 			"UPDATEJOBSTATUS",
 			"SENDLOGS",
+			"CHECKAUTHTOKEN",
 		}
 	} else {
 		funcPatterns = []string{
