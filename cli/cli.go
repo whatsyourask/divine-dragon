@@ -157,12 +157,12 @@ func NewToolCommandLineInterface() (*ToolCommandLineInterface, error) {
 			Run: tcli.runSmbPasswordSprayingModule,
 		},
 		{
-			Name: "payload_generator/payload_generator",
-			Info: "Module to generate Bind/Reverse shell payload in go binary.",
+			Name: "payload_generator/stage_one",
+			Info: "Module to generate Bind/Reverse shell/Agent payload in go binary.",
 			Options: map[string]string{
 				"HOST":            "",
 				"PORT":            "4444",
-				"SHELL_TYPE":      "",
+				"PAYLOAD_TYPE":    "",
 				"PLATFORM":        "windows",
 				"ARCH":            "amd64",
 				"EXECUTABLE_NAME": "payload.exe",
@@ -592,16 +592,16 @@ func (tcli *ToolCommandLineInterface) runPayloadGeneratorModule() {
 		}
 	}
 	if allSet {
-		pg := payload_generator.NewPayloadGeneratorModule(
+		sopgm := payload_generator.NewStageOnePayloadGeneratorModule(
 			tcli.selectedModule.Options["HOST"],
 			tcli.selectedModule.Options["PORT"],
-			tcli.selectedModule.Options["SHELL_TYPE"],
+			tcli.selectedModule.Options["PAYLOAD_TYPE"],
 			tcli.selectedModule.Options["PLATFORM"],
 			tcli.selectedModule.Options["ARCH"],
 			tcli.selectedModule.Options["EXECUTABLE_NAME"],
 		)
 		// fmt.Println("Running")
-		pg.Run()
+		sopgm.Run()
 	}
 }
 
