@@ -136,8 +136,8 @@ func (c2s *C2Server) initAgentJWTMiddleware() (*jwt.GinJWTMiddleware, error) {
 	authMiddleware, err := jwt.New(&jwt.GinJWTMiddleware{
 		Realm:       "C2-agent",
 		Key:         []byte(secret),
-		Timeout:     time.Hour,
-		MaxRefresh:  time.Hour,
+		Timeout:     time.Hour * 3,
+		MaxRefresh:  time.Hour * 6,
 		IdentityKey: c2s.agentIdentityKey,
 		PayloadFunc: func(data interface{}) jwt.MapClaims {
 			if v, ok := data.(*Agent); ok {
@@ -297,8 +297,8 @@ func (c2s *C2Server) initOperatorJWTMiddleware() (*jwt.GinJWTMiddleware, error) 
 	authMiddleware, err := jwt.New(&jwt.GinJWTMiddleware{
 		Realm:       "C2-operator",
 		Key:         []byte(secret),
-		Timeout:     time.Hour,
-		MaxRefresh:  time.Hour,
+		Timeout:     time.Hour * 3,
+		MaxRefresh:  time.Hour * 6,
 		IdentityKey: c2s.operatorIdentityKey,
 		PayloadFunc: func(data interface{}) jwt.MapClaims {
 			if v, ok := data.(*operator); ok {
