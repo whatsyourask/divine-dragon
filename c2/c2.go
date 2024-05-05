@@ -8,7 +8,9 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"math"
 	"net/http"
+	"time"
 
 	"github.com/google/uuid"
 )
@@ -48,7 +50,6 @@ func NewC2Module(localHostOpt, localPortOpt string) *C2Module {
 func (c2m *C2Module) Run() {
 	c2m.logger.Log.Infof("A new C2 server started on %s:%s", c2m.localHost, c2m.localPort)
 	go c2m.protect(c2m.c2s.Run)
-	// c2m.AddJob("79ce8549-320d-4493-bd2d-c0e9a3802e5f")
 }
 
 func (c2m *C2Module) protect(f func() error) {
@@ -64,13 +65,7 @@ func (c2m *C2Module) protect(f func() error) {
 }
 
 func (c2m *C2Module) GetAgents() []transport.Agent {
-	if c2m.authorizationToken == "" {
-		err := c2m.operatorLogin()
-		if err != nil {
-			c2m.logger.Log.Error(err)
-			return nil
-		}
-	}
+	c2m.checkAuthTokenExpiration()
 	req, err := http.NewRequest("GET", c2m.apiUrl+"/operator/agents", nil)
 	if err != nil {
 		c2m.logger.Log.Errorf("can't create a new request: %v", err)
@@ -144,13 +139,7 @@ func (c2m *C2Module) operatorLogin() error {
 }
 
 func (c2m *C2Module) AddJob(agentUuid string, payloadFilename string) error {
-	if c2m.authorizationToken == "" {
-		err := c2m.operatorLogin()
-		if err != nil {
-			c2m.logger.Log.Error(err)
-			return nil
-		}
-	}
+	c2m.checkAuthTokenExpiration()
 	uuid := uuid.New()
 	jobUuid := uuid.String()
 	addJobPostBody := map[string]string{"agent-uuid": agentUuid, "job-uuid": jobUuid, "paylod-filename": payloadFilename}
@@ -197,13 +186,7 @@ func (c2m *C2Module) AddJob(agentUuid string, payloadFilename string) error {
 }
 
 func (c2m *C2Module) GetAllAgentJobs(agentUuid string) ([]string, map[string]bool, map[string]string) {
-	if c2m.authorizationToken == "" {
-		err := c2m.operatorLogin()
-		if err != nil {
-			c2m.logger.Log.Error(err)
-			return nil, nil, nil
-		}
-	}
+	c2m.checkAuthTokenExpiration()
 	req, err := http.NewRequest("GET", c2m.apiUrl+"/agents/"+agentUuid+"/jobs", nil)
 	if err != nil {
 		c2m.logger.Log.Errorf("can't create a new request: %v", err)
@@ -247,4 +230,51 @@ func (c2m *C2Module) GetAllAgentJobs(agentUuid string) ([]string, map[string]boo
 		jobsResult[agentJobStatus.Job] = agentJobStatus.Result
 	}
 	return jobs, jobsStatus, jobsResult
+}
+
+func (c2m *C2Module) checkAuthTokenExpiration() {
+	authTokenExpireDate, err := time.Parse("2006-01-02 15:04", c2m.authorizationTokenExpire)
+	if err != nil {
+		c2m.logger.Log.Errorf("can't parse a auth token expire time: %v", err)
+	}
+	now := time.Now()
+	if now.After(authTokenExpireDate) {
+		difference := now.Sub(authTokenExpireDate).Hours()
+		hours, minutes := math.Modf(difference)
+		if hours < 4 && minutes >= 00 {
+			req, err := http.NewRequest("GET", c2m.apiUrl+"/operator/refresh_token", nil)
+			if err != nil {
+				c2m.logger.Log.Errorf("can't create a new request: %v", err)
+			}
+			req.Header.Set("Authorization", "Bearer "+c2m.authorizationToken)
+			client := &http.Client{
+				Transport: &http.Transport{
+					TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
+				},
+			}
+			resp, err := client.Do(req)
+			if err != nil {
+				c2m.logger.Log.Errorf("can't perform a request: %v", err)
+			}
+			respBody, err := io.ReadAll(resp.Body)
+			if err != nil {
+				c2m.logger.Log.Errorf("can't do io.ReadAll: %v", err)
+			}
+			var respJson struct {
+				Expire string `json:"expire"`
+				Token  string `json:"token"`
+			}
+			err = json.Unmarshal(respBody, &respJson)
+			if err != nil {
+				c2m.logger.Log.Errorf("can't unmarshal a JSON in response: %v", err)
+			}
+			c2m.authorizationToken = respJson.Token
+			c2m.authorizationTokenExpire = respJson.Expire
+		} else {
+			err := c2m.operatorLogin()
+			if err != nil {
+				c2m.logger.Log.Error(err)
+			}
+		}
+	}
 }
