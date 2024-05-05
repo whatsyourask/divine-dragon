@@ -59,7 +59,7 @@ func (sopgm *StageOnePayloadGeneratorModule) preparePayloadSource() (string, err
 			"AGENT",
 			"CHECKCONNECTION",
 			"TRYTOCONNECT",
-			"GETHOSTNAME",
+			"GETMACHINENAME",
 			"GETUSERNAME",
 			"CHECKJOBS",
 			"DOJOBS",
