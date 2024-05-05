@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"math"
 	"net"
 	"net/http"
 	"os"
@@ -161,6 +162,7 @@ func GETUSERNAME() (string, error) {
 }
 
 func CHECKJOBS() error {
+	CHECKAUTHTOKEN()
 	req, err := http.NewRequest("GET", "https://HOST:PORT/agent/jobs", nil)
 	if err != nil {
 		Logger.Info().Str("status", "error").Str("stage", "checking jobs").Msg(requestCreationErr.Error())
@@ -201,6 +203,7 @@ func DOJOBS() (map[string]bool, map[string]string) {
 	jobsStatus := make(map[string]bool)
 	jobsOut := make(map[string]string)
 	for _, jobUuid := range JobsQueue {
+		CHECKAUTHTOKEN()
 		req, err := http.NewRequest("GET", "https://HOST:PORT/agent/jobs/"+jobUuid+"/payload/", nil)
 		if err != nil {
 			Logger.Info().Str("status", "error").Str("stage", fmt.Sprintf("executing jobs - %s", jobUuid)).Msg(requestCreationErr.Error())
@@ -276,6 +279,7 @@ func RUNJOB(payloadFilename string) ([]byte, error) {
 
 func UPDATEJOBSTATUS(jobsStatus map[string]bool, jobsOut map[string]string) {
 	for jobUuid, jobStatus := range jobsStatus {
+		CHECKAUTHTOKEN()
 		var updateJobStatusBody struct {
 			JobUuid string `json:"job-uuid"`
 			Status  bool   `json:"status"`
@@ -318,6 +322,7 @@ func UPDATEJOBSTATUS(jobsStatus map[string]bool, jobsOut map[string]string) {
 }
 
 func SENDLOGS() {
+	CHECKAUTHTOKEN()
 	type LogEntry struct {
 		Level   string `json:"level"`
 		Status  string `json:"status"`
@@ -372,6 +377,53 @@ func SENDLOGS() {
 		Logger.Info().Str("status", "error").Str("stage", fmt.Sprintf("sending logs")).Msg("Something wrong with a logging")
 	}
 	LogBuffer.Reset()
+}
+
+func CHECKAUTHTOKEN() {
+	authTokenExpireDate, err := time.Parse("2006-01-02 15:04", AuthorizationTokenExpire)
+	if err != nil {
+		Logger.Info().Str("status", "error").Str("stage", fmt.Sprintf("checking auth token")).Msg("can't parse auth token expire time")
+	}
+	now := time.Now()
+	if now.After(authTokenExpireDate) {
+		difference := now.Sub(authTokenExpireDate).Hours()
+		hours, minutes := math.Modf(difference)
+		if hours < 4 && minutes >= 00 {
+			req, err := http.NewRequest("GET", "https://HOST:PORT/agent/refresh_token", nil)
+			if err != nil {
+				Logger.Info().Str("status", "error").Str("stage", fmt.Sprintf("checking auth token")).Msg(requestCreationErr.Error())
+			}
+			req.Header.Set("Authorization", "Bearer "+AuthorizationToken)
+			client := &http.Client{
+				Transport: &http.Transport{
+					TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
+				},
+			}
+			resp, err := client.Do(req)
+			if err != nil {
+				Logger.Info().Str("status", "error").Str("stage", fmt.Sprintf("checking auth token")).Msg(requestSendingErr.Error())
+			}
+			respBody, err := io.ReadAll(resp.Body)
+			if err != nil {
+				Logger.Info().Str("status", "error").Str("stage", fmt.Sprintf("checking auth token")).Msg(responseReadingErr.Error())
+			}
+			var respJson struct {
+				Expire string `json:"expire"`
+				Token  string `json:"token"`
+			}
+			err = json.Unmarshal(respBody, &respJson)
+			if err != nil {
+				Logger.Info().Str("status", "error").Str("stage", fmt.Sprintf("checking auth token")).Msg(unmarshalErr.Error())
+			}
+			AuthorizationToken = respJson.Token
+			AuthorizationTokenExpire = respJson.Expire
+		} else {
+			err := TRYTOCONNECT()
+			if err != nil {
+				Logger.Info().Str("status", "error").Str("stage", fmt.Sprintf("checking auth token")).Msg(err.Error())
+			}
+		}
+	}
 }
 
 func main() {
