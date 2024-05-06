@@ -10,6 +10,7 @@ require (
 	github.com/google/uuid v1.6.0
 	github.com/hirochachacha/go-smb2 v1.1.0
 	github.com/op/go-logging v0.0.0-20160315200505-970db520ece7
+	github.com/relvacode/iso8601 v1.4.0
 	github.com/ropnop/gokrb5/v8 v8.0.0-20201111231119-729746023c02
 	github.com/rs/zerolog v1.32.0
 	golang.org/x/crypto v0.22.0

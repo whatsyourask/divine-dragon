@@ -30,14 +30,12 @@ type ToolCommandLineInterface struct {
 	modulesSettings          []ModuleSettings
 	useFormatCommand         string
 	infoGeneralFormatCommand string
-	backModuleCommand        string
-	infoModuleFormatCommand  string
-	showModuleOptionsCommand string
 	setOptionsFormatCommand  string
-	runModuleCommand         string
 	moduleGeneralCommand     []string
 	c2m                      *c2.C2Module
 	agents                   []transport.Agent
+	agentJobsCommand         string
+	agentLogsCommand         string
 }
 
 func NewToolCommandLineInterface() (*ToolCommandLineInterface, error) {
@@ -179,7 +177,6 @@ func NewToolCommandLineInterface() (*ToolCommandLineInterface, error) {
 			Run: tcli.runC2Module,
 		},
 	}
-	// fmt.Println(tcli.modulesSettings)
 	tcli.generalCommandsMethods = map[string]func(){
 		"list modules": tcli.listModules,
 		"quit":         tcli.exit,
@@ -189,13 +186,11 @@ func NewToolCommandLineInterface() (*ToolCommandLineInterface, error) {
 	tcli.useFormatCommand = "use %s"
 	tcli.infoGeneralFormatCommand = "show info %s"
 	tcli.moduleGeneralCommand = []string{"back", "info", "show options", "run", "quit", "exit", "sessions"}
-	// tcli.backModuleCommand = "back"
-	// tcli.infoModuleFormatCommand = "info"
-	// tcli.showModuleOptionsCommand = "show options"
 	tcli.setOptionsFormatCommand = "set %s %s"
-	// tcli.runModuleCommand = "run"
 	tcli.c2m = nil
 	tcli.agents = nil
+	tcli.agentJobsCommand = "jobs"
+	tcli.agentLogsCommand = "logs"
 	return &tcli, nil
 }
 
@@ -211,9 +206,9 @@ func (tcli *ToolCommandLineInterface) Run() {
 			if strings.Contains(formattedCommand, "use ") {
 				for _, moduleSettings := range tcli.modulesSettings {
 					if formattedCommand == fmt.Sprintf(tcli.useFormatCommand, moduleSettings.Name) {
-						splitedCommand := strings.Split(command, " ")
+						splittedCommand := strings.Split(command, " ")
 						for _, moduleSettings := range tcli.modulesSettings {
-							if splitedCommand[1] == moduleSettings.Name {
+							if splittedCommand[1] == moduleSettings.Name {
 								tcli.selectedModule = moduleSettings
 							}
 						}
@@ -224,11 +219,19 @@ func (tcli *ToolCommandLineInterface) Run() {
 			} else if strings.Contains(formattedCommand, "show info ") {
 				for _, moduleSettings := range tcli.modulesSettings {
 					if formattedCommand == fmt.Sprintf(tcli.infoGeneralFormatCommand, moduleSettings.Name) {
-						splitedCommand := strings.Split(command, " ")
-						moduleName := splitedCommand[2]
+						splittedCommand := strings.Split(command, " ")
+						moduleName := splittedCommand[2]
 						tcli.showInfo(moduleName)
 					}
 				}
+			} else if strings.Contains(formattedCommand, "jobs ") {
+				splittedCommand := strings.Split(command, " ")
+				agentUuid := splittedCommand[1]
+				tcli.checkAgentJobs(agentUuid)
+			} else if strings.Contains(formattedCommand, "logs ") {
+				splittedCommand := strings.Split(command, " ")
+				agentUuid := splittedCommand[1]
+				tcli.checkAgentLogs(agentUuid)
 			} else {
 				for c, tcliFunc := range tcli.generalCommandsMethods {
 					if formattedCommand == c {
@@ -236,6 +239,10 @@ func (tcli *ToolCommandLineInterface) Run() {
 					}
 				}
 			}
+		} else {
+			fmt.Println()
+			fmt.Println(err.Error())
+			fmt.Println()
 		}
 		fmt.Print(tcli.label)
 	}
@@ -254,15 +261,34 @@ func (tcli *ToolCommandLineInterface) printLogo() {
 }
 
 func (tcli *ToolCommandLineInterface) validateGeneralCommand(command string) error {
-	for generalCommandMethod, _ := range tcli.generalCommandsMethods {
+	for generalCommandMethod := range tcli.generalCommandsMethods {
 		if command == generalCommandMethod {
 			return nil
 		}
 	}
 	for _, formatCommand := range []string{tcli.infoGeneralFormatCommand, tcli.useFormatCommand} {
 		for _, moduleSettings := range tcli.modulesSettings {
-			// fmt.Println(fmt.Sprintf(formatCommand, moduleSettings.Name))
 			if command == fmt.Sprintf(formatCommand, moduleSettings.Name) {
+				return nil
+			}
+		}
+	}
+	err := tcli.validateJobsCommand(command)
+	if err == nil {
+		return nil
+	}
+	err = tcli.validateLogsCommand(command)
+	if err == nil {
+		return nil
+	}
+	return fmt.Errorf("Command's not recognized.\n")
+}
+
+func (tcli *ToolCommandLineInterface) validateLogsCommand(command string) error {
+	splittedCommand := strings.Split(command, " ")
+	if splittedCommand[0] == tcli.agentLogsCommand && len(splittedCommand[1]) == 36 {
+		if tcli.c2m != nil {
+			if tcli.c2m.GetAgents() != nil {
 				return nil
 			}
 		}
@@ -331,6 +357,20 @@ func (tcli *ToolCommandLineInterface) configModule() {
 			if strings.Contains(formattedCommand, "sessions") {
 				tcli.checkSessions()
 			}
+			if strings.Contains(formattedCommand, "jobs ") {
+				splittedCommand := strings.Split(command, " ")
+				agentUuid := splittedCommand[1]
+				tcli.checkAgentJobs(agentUuid)
+			}
+			if strings.Contains(formattedCommand, "logs ") {
+				splittedCommand := strings.Split(command, " ")
+				agentUuid := splittedCommand[1]
+				tcli.checkAgentLogs(agentUuid)
+			}
+		} else {
+			fmt.Println()
+			fmt.Println(err.Error())
+			fmt.Println()
 		}
 		fmt.Print(tcli.label)
 	}
@@ -345,9 +385,28 @@ func (tcli *ToolCommandLineInterface) validateModuleCommand(command string) erro
 	commandSlice := strings.Split(command, " ")
 	if len(commandSlice) > 2 {
 		commandValue := commandSlice[2]
-		for moduleOption, _ := range tcli.selectedModule.Options {
-			// fmt.Println(fmt.Sprintf(tcli.setOptionsFormatCommand, moduleOption, commandValue))
+		for moduleOption := range tcli.selectedModule.Options {
 			if command == fmt.Sprintf(tcli.setOptionsFormatCommand, moduleOption, commandValue) {
+				return nil
+			}
+		}
+	}
+	err := tcli.validateJobsCommand(command)
+	if err == nil {
+		return nil
+	}
+	err = tcli.validateLogsCommand(command)
+	if err == nil {
+		return nil
+	}
+	return fmt.Errorf("Command's not recognized.\n")
+}
+
+func (tcli *ToolCommandLineInterface) validateJobsCommand(command string) error {
+	splittedCommand := strings.Split(command, " ")
+	if splittedCommand[0] == tcli.agentJobsCommand && len(splittedCommand[1]) == 36 {
+		if tcli.c2m != nil {
+			if tcli.c2m.GetAgents() != nil {
 				return nil
 			}
 		}
@@ -360,7 +419,6 @@ func (tcli *ToolCommandLineInterface) setModuleOption(option string, value strin
 }
 
 func (tcli *ToolCommandLineInterface) showModuleOptions() {
-	// fmt.Println(tcli.selectedModule.Options)
 	fmt.Println()
 	fmt.Printf("%15s: %15s\n\n", "OPTION", "VALUE")
 	for moduleOption, moduleValue := range tcli.selectedModule.Options {
@@ -501,7 +559,6 @@ func (tcli *ToolCommandLineInterface) runKerberoastingModule() {
 			break
 		}
 	}
-	// fmt.Println("allSet: ", allSet)
 	if allSet {
 		verbose, _ := strconv.ParseBool(tcli.selectedModule.Options["VERBOSE"])
 		safemode, _ := strconv.ParseBool(tcli.selectedModule.Options["SAFE_MODE"])
@@ -517,7 +574,6 @@ func (tcli *ToolCommandLineInterface) runKerberoastingModule() {
 			verbose,
 			tcli.selectedModule.Options["LOG_FILE"],
 		)
-		// fmt.Println("Running")
 		km.Run()
 	}
 }
@@ -530,7 +586,6 @@ func (tcli *ToolCommandLineInterface) runKerberosPasswordSprayingModule() {
 			break
 		}
 	}
-	// fmt.Println("allSet: ", allSet)
 	if allSet {
 		verbose, _ := strconv.ParseBool(tcli.selectedModule.Options["VERBOSE"])
 		safemode, _ := strconv.ParseBool(tcli.selectedModule.Options["SAFE_MODE"])
@@ -549,7 +604,6 @@ func (tcli *ToolCommandLineInterface) runKerberosPasswordSprayingModule() {
 			int(threads),
 			int(delay),
 		)
-		// fmt.Println("Running")
 		ksm.Run()
 	}
 }
@@ -562,7 +616,6 @@ func (tcli *ToolCommandLineInterface) runSmbPasswordSprayingModule() {
 			break
 		}
 	}
-	// fmt.Println("allSet: ", allSet)
 	if allSet {
 		verbose, _ := strconv.ParseBool(tcli.selectedModule.Options["VERBOSE"])
 		threads, _ := strconv.ParseInt(tcli.selectedModule.Options["THREADS"], 10, 32)
@@ -578,7 +631,6 @@ func (tcli *ToolCommandLineInterface) runSmbPasswordSprayingModule() {
 			int(threads),
 			int(delay),
 		)
-		// fmt.Println("Running")
 		ssm.Run()
 	}
 }
@@ -600,7 +652,6 @@ func (tcli *ToolCommandLineInterface) runPayloadGeneratorModule() {
 			tcli.selectedModule.Options["ARCH"],
 			tcli.selectedModule.Options["EXECUTABLE_NAME"],
 		)
-		// fmt.Println("Running")
 		sopgm.Run()
 	}
 }
@@ -630,12 +681,11 @@ func (tcli *ToolCommandLineInterface) checkSessions() {
 		out := ""
 		if len(agents) > 0 {
 			for _, agent := range agents {
-				out += fmt.Sprintf("%16s| %15s| %s", agent.Uuid, agent.Hostname, agent.Username)
+				out += fmt.Sprintf("%s - %s - %s\n", agent.Uuid, agent.Hostname, agent.Username)
 			}
 			fmt.Println()
-			fmt.Println("\tActive agent sessions")
-			fmt.Println("=================================================")
-			fmt.Println("  Agent UUID    |     Hostname   |     Username    ")
+			fmt.Println("\t\t\tActive sessions of agents")
+			fmt.Println()
 			fmt.Println(out)
 			fmt.Println()
 		} else {
@@ -644,8 +694,73 @@ func (tcli *ToolCommandLineInterface) checkSessions() {
 			fmt.Println()
 		}
 	} else {
-		fmt.Println()
-		fmt.Println("No active C2 server instances. So, you don't have any sessions.")
-		fmt.Println()
+		tcli.noC2Print()
+	}
+}
+
+func (tcli *ToolCommandLineInterface) noC2Print() {
+	fmt.Println()
+	fmt.Println("No active C2 server instances. So, you don't have any sessions.")
+	fmt.Println()
+}
+
+func (tcli *ToolCommandLineInterface) checkAgentJobs(agentUuid string) {
+	if tcli.c2m != nil {
+		tcli.agents = tcli.c2m.GetAgents()
+		for _, agent := range tcli.agents {
+			if agentUuid == agent.Uuid {
+				jobs, statuses, results := tcli.c2m.GetAllAgentJobs(agentUuid)
+				if len(jobs) != 0 {
+					fmt.Println()
+					fmt.Printf("Jobs of Agent with UUID: %s\n", agentUuid)
+					fmt.Println()
+					for ind := range jobs {
+						jobUuid := jobs[ind]
+						fmt.Printf("%s - %v - %s\n", jobUuid, statuses[jobUuid], results[jobUuid])
+					}
+					fmt.Println()
+				} else {
+					fmt.Println()
+					fmt.Printf("Agent with UUID %s has no jobs to run.\n", agentUuid)
+					fmt.Println()
+				}
+			} else {
+				fmt.Println()
+				fmt.Printf("No such agent with UUID %s.\n", agentUuid)
+				fmt.Println()
+			}
+		}
+	} else {
+		tcli.noC2Print()
+	}
+}
+
+func (tcli *ToolCommandLineInterface) checkAgentLogs(agentUuid string) {
+	if tcli.c2m != nil {
+		tcli.agents = tcli.c2m.GetAgents()
+		for _, agent := range tcli.agents {
+			if agentUuid == agent.Uuid {
+				logs := tcli.c2m.GetAgentLogs(agentUuid)
+				if len(logs) != 0 {
+					fmt.Println()
+					fmt.Printf("Logs of Agent with UUID: %s\n", agentUuid)
+					fmt.Println()
+					for _, log := range logs {
+						fmt.Printf("%s - %s - %s - %s - %s\n", log[0], log[1], log[2], log[3], log[4])
+					}
+					fmt.Println()
+				} else {
+					fmt.Println()
+					fmt.Printf("Agent with UUID %s has no logs.\n", agentUuid)
+					fmt.Println()
+				}
+			} else {
+				fmt.Println()
+				fmt.Printf("No such agent with UUID %s.\n", agentUuid)
+				fmt.Println()
+			}
+		}
+	} else {
+		tcli.noC2Print()
 	}
 }
