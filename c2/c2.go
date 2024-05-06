@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/relvacode/iso8601"
 )
 
 type C2Module struct {
@@ -233,48 +234,55 @@ func (c2m *C2Module) GetAllAgentJobs(agentUuid string) ([]string, map[string]boo
 }
 
 func (c2m *C2Module) checkAuthTokenExpiration() {
-	authTokenExpireDate, err := time.Parse("2006-01-02 15:04", c2m.authorizationTokenExpire)
-	if err != nil {
-		c2m.logger.Log.Errorf("can't parse a auth token expire time: %v", err)
-	}
-	now := time.Now()
-	if now.After(authTokenExpireDate) {
-		difference := now.Sub(authTokenExpireDate).Hours()
-		hours, minutes := math.Modf(difference)
-		if hours < 4 && minutes >= 00 {
-			req, err := http.NewRequest("GET", c2m.apiUrl+"/operator/refresh_token", nil)
-			if err != nil {
-				c2m.logger.Log.Errorf("can't create a new request: %v", err)
+	if c2m.authorizationToken != "" {
+		authTokenExpireDate, err := iso8601.ParseString(c2m.authorizationTokenExpire)
+		if err != nil {
+			c2m.logger.Log.Errorf("can't parse a auth token expire time: %v", err)
+		}
+		now := time.Now()
+		if now.After(authTokenExpireDate) {
+			difference := now.Sub(authTokenExpireDate).Hours()
+			hours, minutes := math.Modf(difference)
+			if hours < 4 && minutes >= 00 {
+				req, err := http.NewRequest("GET", c2m.apiUrl+"/operator/refresh_token", nil)
+				if err != nil {
+					c2m.logger.Log.Errorf("can't create a new request: %v", err)
+				}
+				req.Header.Set("Authorization", "Bearer "+c2m.authorizationToken)
+				client := &http.Client{
+					Transport: &http.Transport{
+						TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
+					},
+				}
+				resp, err := client.Do(req)
+				if err != nil {
+					c2m.logger.Log.Errorf("can't perform a request: %v", err)
+				}
+				respBody, err := io.ReadAll(resp.Body)
+				if err != nil {
+					c2m.logger.Log.Errorf("can't do io.ReadAll: %v", err)
+				}
+				var respJson struct {
+					Expire string `json:"expire"`
+					Token  string `json:"token"`
+				}
+				err = json.Unmarshal(respBody, &respJson)
+				if err != nil {
+					c2m.logger.Log.Errorf("can't unmarshal a JSON in response: %v", err)
+				}
+				c2m.authorizationToken = respJson.Token
+				c2m.authorizationTokenExpire = respJson.Expire
+			} else {
+				err := c2m.operatorLogin()
+				if err != nil {
+					c2m.logger.Log.Error(err)
+				}
 			}
-			req.Header.Set("Authorization", "Bearer "+c2m.authorizationToken)
-			client := &http.Client{
-				Transport: &http.Transport{
-					TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
-				},
-			}
-			resp, err := client.Do(req)
-			if err != nil {
-				c2m.logger.Log.Errorf("can't perform a request: %v", err)
-			}
-			respBody, err := io.ReadAll(resp.Body)
-			if err != nil {
-				c2m.logger.Log.Errorf("can't do io.ReadAll: %v", err)
-			}
-			var respJson struct {
-				Expire string `json:"expire"`
-				Token  string `json:"token"`
-			}
-			err = json.Unmarshal(respBody, &respJson)
-			if err != nil {
-				c2m.logger.Log.Errorf("can't unmarshal a JSON in response: %v", err)
-			}
-			c2m.authorizationToken = respJson.Token
-			c2m.authorizationTokenExpire = respJson.Expire
-		} else {
-			err := c2m.operatorLogin()
-			if err != nil {
-				c2m.logger.Log.Error(err)
-			}
+		}
+	} else {
+		err := c2m.operatorLogin()
+		if err != nil {
+			c2m.logger.Log.Error(err)
 		}
 	}
 }
