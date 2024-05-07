@@ -42,7 +42,7 @@ func NewC2Module(localHostOpt, localPortOpt string) *C2Module {
 		return nil
 	}
 	c2m.c2s = c2
-	c2m.apiUrl = "https://" + "127.0.0.1" + ":" + c2m.localPort
+	c2m.apiUrl = "https://" + c2m.localHost + ":" + c2m.localPort
 	c2m.authorizationToken = ""
 	c2m.authorizationTokenExpire = ""
 	return &c2m
@@ -317,4 +317,12 @@ func (c2m *C2Module) GetAgentLogs(agentUuid string) [][]string {
 		return nil
 	}
 	return logs
+}
+
+func (c2m *C2Module) GetC2Hostname() string {
+	return c2m.localHost
+}
+
+func (c2m *C2Module) GetC2Port() string {
+	return c2m.localPort
 }
