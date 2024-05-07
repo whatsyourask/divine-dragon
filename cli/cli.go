@@ -3,6 +3,7 @@ package cli
 import (
 	"bufio"
 	"divine-dragon/c2"
+	"divine-dragon/local_exploit"
 	"divine-dragon/payload_generator"
 	"divine-dragon/remote_enum"
 	"divine-dragon/remote_exploit"
@@ -175,6 +176,14 @@ func NewToolCommandLineInterface() (*ToolCommandLineInterface, error) {
 				"PORT": "8888",
 			},
 			Run: tcli.runC2Module,
+		},
+		{
+			Name: "local_exploit/pass_the_hash",
+			Info: "Module to perform Pass-The-Hash attack with mimikatz.",
+			Options: map[string]string{
+				"agentUuid": "",
+			},
+			Run: tcli.runPassTheHash,
 		},
 	}
 	tcli.generalCommandsMethods = map[string]func(){
@@ -759,6 +768,30 @@ func (tcli *ToolCommandLineInterface) checkAgentLogs(agentUuid string) {
 				fmt.Printf("No such agent with UUID %s.\n", agentUuid)
 				fmt.Println()
 			}
+		}
+	} else {
+		tcli.noC2Print()
+	}
+}
+
+func (tcli *ToolCommandLineInterface) runPassTheHash() {
+	if tcli.c2m != nil {
+		if len(tcli.c2m.GetAgents()) != 0 {
+			var allSet bool = true
+			for _, moduleValue := range tcli.selectedModule.Options {
+				if moduleValue == "" {
+					allSet = false
+					break
+				}
+			}
+			if allSet {
+				pthm := local_exploit.NewPassTheHashModule(tcli.c2m, tcli.selectedModule.Options["agentUuid"])
+				pthm.RunHashDump()
+			}
+		} else {
+			fmt.Println()
+			fmt.Println("You have 0 connected agents.")
+			fmt.Println()
 		}
 	} else {
 		tcli.noC2Print()
