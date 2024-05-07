@@ -1,2 +1,7 @@
-*/*.txt
 *.txt
+*.crt
+*.key
+*.log
+*.py
+*.exe
+.DS_Store

@@ -29,4 +29,7 @@ func main() {
 
 	tcli, _ := cli.NewToolCommandLineInterface()
 	tcli.Run()
+
+	// c2s := transport.NewC2Server("127.0.0.1", "8888")
+	// c2s.Run()
 }
