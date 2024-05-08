@@ -80,7 +80,7 @@ func (stpgm *StageTwoPayloadGeneratorModule) compilePayload(payloadSource string
 		"go",
 		"build",
 		"-o",
-		stpgm.executableName,
+		"data/c2/payloads/"+stpgm.executableName,
 		"-ldflags",
 		"-w -s -extldflags=-static",
 		payloadSourceFileName).Output()
