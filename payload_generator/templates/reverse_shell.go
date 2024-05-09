@@ -31,7 +31,7 @@ func SHELL() {
 	if err != nil {
 		fmt.Printf("%s\n", err)
 	}
-	// os.Remove("FILENAME.ps1")
+	os.Remove("FILENAME.ps1")
 }
 
 func main() {

