@@ -59,7 +59,7 @@ func AGENT() {
 			if errors.Is(err, nil) {
 				break
 			} else {
-				time.Sleep(time.Second * 10)
+				time.Sleep(time.Second * 3)
 			}
 		}
 		for {
@@ -70,7 +70,7 @@ func AGENT() {
 			} else if errors.Is(err, requestSendingErr) {
 				break
 			} else {
-				time.Sleep(time.Second * 10)
+				time.Sleep(time.Second * 3)
 			}
 			SENDLOGS()
 		}
