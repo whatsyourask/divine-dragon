@@ -3,6 +3,7 @@ package cli
 import (
 	"bufio"
 	"divine-dragon/c2"
+	"divine-dragon/local_exploit"
 	"divine-dragon/payload_generator"
 	"divine-dragon/remote_enum"
 	"divine-dragon/remote_exploit"
@@ -12,6 +13,7 @@ import (
 	"os"
 	"strconv"
 	"strings"
+	"text/tabwriter"
 )
 
 type ModuleSettings struct {
@@ -155,8 +157,8 @@ func NewToolCommandLineInterface() (*ToolCommandLineInterface, error) {
 			Run: tcli.runSmbPasswordSprayingModule,
 		},
 		{
-			Name: "payload_generator/stage_one",
-			Info: "Module to generate Bind/Reverse shell/Agent payload in go binary.",
+			Name: "payload_generator/agent",
+			Info: "Module to generate agent payload in go binary.",
 			Options: map[string]string{
 				"HOST":            "",
 				"PORT":            "4444",
@@ -175,6 +177,16 @@ func NewToolCommandLineInterface() (*ToolCommandLineInterface, error) {
 				"PORT": "8888",
 			},
 			Run: tcli.runC2Module,
+		},
+		{
+			Name: "local_exploit/pass_the_hash",
+			Info: "Module to perform Pass-The-Hash attack with mimikatz.",
+			Options: map[string]string{
+				"AGENT":       "",
+				"LISTEN_HOST": "",
+				"LISTEN_PORT": "4444",
+			},
+			Run: tcli.runPassTheHash,
 		},
 	}
 	tcli.generalCommandsMethods = map[string]func(){
@@ -286,10 +298,12 @@ func (tcli *ToolCommandLineInterface) validateGeneralCommand(command string) err
 
 func (tcli *ToolCommandLineInterface) validateLogsCommand(command string) error {
 	splittedCommand := strings.Split(command, " ")
-	if splittedCommand[0] == tcli.agentLogsCommand && len(splittedCommand[1]) == 36 {
-		if tcli.c2m != nil {
-			if tcli.c2m.GetAgents() != nil {
-				return nil
+	if len(splittedCommand) == 2 {
+		if splittedCommand[0] == tcli.agentLogsCommand && len(splittedCommand[1]) == 36 {
+			if tcli.c2m != nil {
+				if tcli.c2m.GetAgents() != nil {
+					return nil
+				}
 			}
 		}
 	}
@@ -404,10 +418,12 @@ func (tcli *ToolCommandLineInterface) validateModuleCommand(command string) erro
 
 func (tcli *ToolCommandLineInterface) validateJobsCommand(command string) error {
 	splittedCommand := strings.Split(command, " ")
-	if splittedCommand[0] == tcli.agentJobsCommand && len(splittedCommand[1]) == 36 {
-		if tcli.c2m != nil {
-			if tcli.c2m.GetAgents() != nil {
-				return nil
+	if len(splittedCommand) == 2 {
+		if splittedCommand[0] == tcli.agentJobsCommand && len(splittedCommand[1]) == 36 {
+			if tcli.c2m != nil {
+				if tcli.c2m.GetAgents() != nil {
+					return nil
+				}
 			}
 		}
 	}
@@ -444,7 +460,6 @@ func (tcli *ToolCommandLineInterface) runKerberosEnumUsersModule() {
 			break
 		}
 	}
-	fmt.Println("allSet: ", allSet)
 	if allSet {
 		verbose, _ := strconv.ParseBool(tcli.selectedModule.Options["VERBOSE"])
 		safemode, _ := strconv.ParseBool(tcli.selectedModule.Options["SAFE_MODE"])
@@ -462,7 +477,6 @@ func (tcli *ToolCommandLineInterface) runKerberosEnumUsersModule() {
 			int(threads),
 			int(delay),
 		)
-		fmt.Println("Running")
 		keum.Run()
 	}
 }
@@ -475,7 +489,6 @@ func (tcli *ToolCommandLineInterface) runSmbEnumModule() {
 			break
 		}
 	}
-	fmt.Println("allSet: ", allSet)
 	if allSet {
 		verbose, _ := strconv.ParseBool(tcli.selectedModule.Options["VERBOSE"])
 		sem := remote_enum.NewSmbEnumModule(
@@ -488,7 +501,6 @@ func (tcli *ToolCommandLineInterface) runSmbEnumModule() {
 			verbose,
 			tcli.selectedModule.Options["LOG_FILE"],
 		)
-		fmt.Println("Running")
 		sem.Run()
 	}
 }
@@ -501,7 +513,6 @@ func (tcli *ToolCommandLineInterface) runLdapEnumModule() {
 			break
 		}
 	}
-	fmt.Println("allSet: ", allSet)
 	if allSet {
 		verbose, _ := strconv.ParseBool(tcli.selectedModule.Options["VERBOSE"])
 		lem := remote_enum.NewLdapEnumModule(
@@ -514,7 +525,6 @@ func (tcli *ToolCommandLineInterface) runLdapEnumModule() {
 			verbose,
 			tcli.selectedModule.Options["LOG_FILE"],
 		)
-		fmt.Println("Running")
 		lem.Run()
 	}
 }
@@ -527,7 +537,6 @@ func (tcli *ToolCommandLineInterface) runASREPRoastingModule() {
 			break
 		}
 	}
-	fmt.Println("allSet: ", allSet)
 	if allSet {
 		verbose, _ := strconv.ParseBool(tcli.selectedModule.Options["VERBOSE"])
 		safemode, _ := strconv.ParseBool(tcli.selectedModule.Options["SAFE_MODE"])
@@ -546,7 +555,6 @@ func (tcli *ToolCommandLineInterface) runASREPRoastingModule() {
 			int(threads),
 			int(delay),
 		)
-		fmt.Println("Running")
 		arm.Run()
 	}
 }
@@ -678,15 +686,16 @@ func (tcli *ToolCommandLineInterface) checkSessions() {
 	if tcli.c2m != nil {
 		agents := tcli.c2m.GetAgents()
 		tcli.agents = agents
-		out := ""
 		if len(agents) > 0 {
+			fmt.Println()
+			fmt.Println("Active Agents:")
+			fmt.Println()
+			w := tabwriter.NewWriter(os.Stdout, 1, 1, 1, ' ', 0)
+			fmt.Fprintln(w, "Agent UUID\tHostname\tUsername")
 			for _, agent := range agents {
-				out += fmt.Sprintf("%s - %s - %s\n", agent.Uuid, agent.Hostname, agent.Username)
+				fmt.Fprintf(w, "%s\t%s\t%s\n", agent.Uuid, agent.Hostname, agent.Username)
 			}
-			fmt.Println()
-			fmt.Println("\t\t\tActive sessions of agents")
-			fmt.Println()
-			fmt.Println(out)
+			w.Flush()
 			fmt.Println()
 		} else {
 			fmt.Println()
@@ -707,28 +716,35 @@ func (tcli *ToolCommandLineInterface) noC2Print() {
 func (tcli *ToolCommandLineInterface) checkAgentJobs(agentUuid string) {
 	if tcli.c2m != nil {
 		tcli.agents = tcli.c2m.GetAgents()
+		agentFound := false
 		for _, agent := range tcli.agents {
 			if agentUuid == agent.Uuid {
-				jobs, statuses, results := tcli.c2m.GetAllAgentJobs(agentUuid)
-				if len(jobs) != 0 {
-					fmt.Println()
-					fmt.Printf("Jobs of Agent with UUID: %s\n", agentUuid)
-					fmt.Println()
-					for ind := range jobs {
-						jobUuid := jobs[ind]
-						fmt.Printf("%s - %v - %s\n", jobUuid, statuses[jobUuid], results[jobUuid])
-					}
-					fmt.Println()
-				} else {
-					fmt.Println()
-					fmt.Printf("Agent with UUID %s has no jobs to run.\n", agentUuid)
-					fmt.Println()
+				agentFound = true
+			}
+		}
+		if agentFound {
+			jobs, statuses, results := tcli.c2m.GetAllAgentJobs(agentUuid)
+			if len(jobs) != 0 {
+				fmt.Println()
+				fmt.Printf("Jobs of Agent with UUID: %s\n", agentUuid)
+				fmt.Println()
+				w := tabwriter.NewWriter(os.Stdout, 1, 1, 1, ' ', 0)
+				fmt.Fprintln(w, "Job UUID\tStatus\tResult")
+				for ind := range jobs {
+					jobUuid := jobs[ind]
+					fmt.Fprintf(w, "%s\t%v\t%s\n", jobUuid, statuses[jobUuid], results[jobUuid])
 				}
+				w.Flush()
+				fmt.Println()
 			} else {
 				fmt.Println()
-				fmt.Printf("No such agent with UUID %s.\n", agentUuid)
+				fmt.Printf("Agent with UUID %s has no jobs to run.\n", agentUuid)
 				fmt.Println()
 			}
+		} else {
+			fmt.Println()
+			fmt.Printf("No such agent with UUID %s.\n", agentUuid)
+			fmt.Println()
 		}
 	} else {
 		tcli.noC2Print()
@@ -738,27 +754,58 @@ func (tcli *ToolCommandLineInterface) checkAgentJobs(agentUuid string) {
 func (tcli *ToolCommandLineInterface) checkAgentLogs(agentUuid string) {
 	if tcli.c2m != nil {
 		tcli.agents = tcli.c2m.GetAgents()
+		agentFound := false
 		for _, agent := range tcli.agents {
 			if agentUuid == agent.Uuid {
-				logs := tcli.c2m.GetAgentLogs(agentUuid)
-				if len(logs) != 0 {
-					fmt.Println()
-					fmt.Printf("Logs of Agent with UUID: %s\n", agentUuid)
-					fmt.Println()
-					for _, log := range logs {
-						fmt.Printf("%s - %s - %s - %s - %s\n", log[0], log[1], log[2], log[3], log[4])
-					}
-					fmt.Println()
-				} else {
-					fmt.Println()
-					fmt.Printf("Agent with UUID %s has no logs.\n", agentUuid)
-					fmt.Println()
+				agentFound = true
+			}
+		}
+		if agentFound {
+			logs := tcli.c2m.GetAgentLogs(agentUuid)
+			if len(logs) != 0 {
+				fmt.Println()
+				fmt.Printf("Logs of Agent with UUID: %s\n", agentUuid)
+				fmt.Println()
+				w := tabwriter.NewWriter(os.Stdout, 1, 1, 1, ' ', 0)
+				fmt.Fprintln(w, "Level\tStatus\tStage\tTime\tMessage")
+				for _, log := range logs {
+					fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%s\n", log[0], log[1], log[2], log[3], log[4])
 				}
+				w.Flush()
+				fmt.Println()
 			} else {
 				fmt.Println()
-				fmt.Printf("No such agent with UUID %s.\n", agentUuid)
+				fmt.Printf("Agent with UUID %s has no logs.\n", agentUuid)
 				fmt.Println()
 			}
+		} else {
+			fmt.Println()
+			fmt.Printf("No such agent with UUID %s.\n", agentUuid)
+			fmt.Println()
+		}
+	} else {
+		tcli.noC2Print()
+	}
+}
+
+func (tcli *ToolCommandLineInterface) runPassTheHash() {
+	if tcli.c2m != nil {
+		if len(tcli.c2m.GetAgents()) != 0 {
+			var allSet bool = true
+			for _, moduleValue := range tcli.selectedModule.Options {
+				if moduleValue == "" {
+					allSet = false
+					break
+				}
+			}
+			if allSet {
+				pthm := local_exploit.NewPassTheHashModule(tcli.c2m, tcli.selectedModule.Options["AGENT"], tcli.selectedModule.Options["LISTEN_HOST"], tcli.selectedModule.Options["LISTEN_PORT"])
+				pthm.Run()
+			}
+		} else {
+			fmt.Println()
+			fmt.Println("You have 0 connected agents.")
+			fmt.Println()
 		}
 	} else {
 		tcli.noC2Print()

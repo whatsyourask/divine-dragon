@@ -42,7 +42,7 @@ func NewC2Module(localHostOpt, localPortOpt string) *C2Module {
 		return nil
 	}
 	c2m.c2s = c2
-	c2m.apiUrl = "https://" + "127.0.0.1" + ":" + c2m.localPort
+	c2m.apiUrl = "https://" + c2m.localHost + ":" + c2m.localPort
 	c2m.authorizationToken = ""
 	c2m.authorizationTokenExpire = ""
 	return &c2m
@@ -51,6 +51,7 @@ func NewC2Module(localHostOpt, localPortOpt string) *C2Module {
 func (c2m *C2Module) Run() {
 	c2m.logger.Log.Infof("A new C2 server started on %s:%s", c2m.localHost, c2m.localPort)
 	go c2m.protect(c2m.c2s.Run)
+	c2m.operatorLogin()
 }
 
 func (c2m *C2Module) protect(f func() error) {
@@ -139,18 +140,19 @@ func (c2m *C2Module) operatorLogin() error {
 	return nil
 }
 
-func (c2m *C2Module) AddJob(agentUuid string, payloadFilename string) error {
+func (c2m *C2Module) AddJob(agentUuid string, payloadFilename string) (string, error) {
 	c2m.checkAuthTokenExpiration()
 	uuid := uuid.New()
 	jobUuid := uuid.String()
-	addJobPostBody := map[string]string{"agent-uuid": agentUuid, "job-uuid": jobUuid, "paylod-filename": payloadFilename}
+	addJobPostBody := map[string]string{"agent-uuid": agentUuid, "job-uuid": jobUuid, "payload-filename": payloadFilename}
 	addJobPostJson, err := json.Marshal(addJobPostBody)
 	if err != nil {
-		return fmt.Errorf("can't marshal a json for POST login: %v", err)
+		c2m.logger.Log.Errorf("can't marshal a json for POST login: %v", err)
+		return "", err
 	}
 	req, err := http.NewRequest("POST", c2m.apiUrl+"/operator/agents/job/add", bytes.NewBuffer(addJobPostJson))
 	if err != nil {
-		return fmt.Errorf("can't create a POST request: %v", err)
+		return "", fmt.Errorf("can't create a POST request: %v", err)
 	}
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Authorization", "Bearer "+c2m.authorizationToken)
@@ -162,12 +164,12 @@ func (c2m *C2Module) AddJob(agentUuid string, payloadFilename string) error {
 	resp, err := client.Do(req)
 	if err != nil {
 		c2m.logger.Log.Errorf("can't perform a request: %v", err)
-		return nil
+		return "", err
 	}
 	respBody, err := io.ReadAll(resp.Body)
 	if err != nil {
 		c2m.logger.Log.Errorf("can't do io.ReadAll: %v", err)
-		return nil
+		return "", err
 	}
 	var respJson struct {
 		Status string `json:"status"`
@@ -175,14 +177,14 @@ func (c2m *C2Module) AddJob(agentUuid string, payloadFilename string) error {
 	err = json.Unmarshal(respBody, &respJson)
 	if err != nil {
 		c2m.logger.Log.Errorf("can't unmarshal a JSON in response: %v", err)
-		return nil
+		return "", err
 	}
 	if respJson.Status == "ok" {
-		return nil
+		return jobUuid, nil
 	} else if respJson.Status == "agent not found" {
-		return fmt.Errorf("there is no such agent")
+		return "", fmt.Errorf("there is no such agent")
 	} else {
-		return fmt.Errorf("can't add a job to the agent")
+		return "", fmt.Errorf("can't add a job to the agent")
 	}
 }
 
@@ -317,4 +319,12 @@ func (c2m *C2Module) GetAgentLogs(agentUuid string) [][]string {
 		return nil
 	}
 	return logs
+}
+
+func (c2m *C2Module) GetC2Hostname() string {
+	return c2m.localHost
+}
+
+func (c2m *C2Module) GetC2Port() string {
+	return c2m.localPort
 }

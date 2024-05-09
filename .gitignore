@@ -2,6 +2,6 @@
 *.crt
 *.key
 *.log
-*.py
 *.exe
 .DS_Store
+!mimikatz.exe
