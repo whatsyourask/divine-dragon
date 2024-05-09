@@ -51,6 +51,7 @@ func NewC2Module(localHostOpt, localPortOpt string) *C2Module {
 func (c2m *C2Module) Run() {
 	c2m.logger.Log.Infof("A new C2 server started on %s:%s", c2m.localHost, c2m.localPort)
 	go c2m.protect(c2m.c2s.Run)
+	c2m.operatorLogin()
 }
 
 func (c2m *C2Module) protect(f func() error) {
