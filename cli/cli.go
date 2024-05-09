@@ -156,8 +156,8 @@ func NewToolCommandLineInterface() (*ToolCommandLineInterface, error) {
 			Run: tcli.runSmbPasswordSprayingModule,
 		},
 		{
-			Name: "payload_generator/stage_one",
-			Info: "Module to generate Bind/Reverse shell/Agent payload in go binary.",
+			Name: "payload_generator/agent",
+			Info: "Module to generate agent payload in go binary.",
 			Options: map[string]string{
 				"HOST":            "",
 				"PORT":            "4444",
@@ -181,7 +181,9 @@ func NewToolCommandLineInterface() (*ToolCommandLineInterface, error) {
 			Name: "local_exploit/pass_the_hash",
 			Info: "Module to perform Pass-The-Hash attack with mimikatz.",
 			Options: map[string]string{
-				"AGENT": "",
+				"AGENT":       "",
+				"LISTEN_HOST": "",
+				"LISTEN_PORT": "4444",
 			},
 			Run: tcli.runPassTheHash,
 		},
@@ -457,7 +459,6 @@ func (tcli *ToolCommandLineInterface) runKerberosEnumUsersModule() {
 			break
 		}
 	}
-	fmt.Println("allSet: ", allSet)
 	if allSet {
 		verbose, _ := strconv.ParseBool(tcli.selectedModule.Options["VERBOSE"])
 		safemode, _ := strconv.ParseBool(tcli.selectedModule.Options["SAFE_MODE"])
@@ -475,7 +476,6 @@ func (tcli *ToolCommandLineInterface) runKerberosEnumUsersModule() {
 			int(threads),
 			int(delay),
 		)
-		fmt.Println("Running")
 		keum.Run()
 	}
 }
@@ -488,7 +488,6 @@ func (tcli *ToolCommandLineInterface) runSmbEnumModule() {
 			break
 		}
 	}
-	fmt.Println("allSet: ", allSet)
 	if allSet {
 		verbose, _ := strconv.ParseBool(tcli.selectedModule.Options["VERBOSE"])
 		sem := remote_enum.NewSmbEnumModule(
@@ -501,7 +500,6 @@ func (tcli *ToolCommandLineInterface) runSmbEnumModule() {
 			verbose,
 			tcli.selectedModule.Options["LOG_FILE"],
 		)
-		fmt.Println("Running")
 		sem.Run()
 	}
 }
@@ -514,7 +512,6 @@ func (tcli *ToolCommandLineInterface) runLdapEnumModule() {
 			break
 		}
 	}
-	fmt.Println("allSet: ", allSet)
 	if allSet {
 		verbose, _ := strconv.ParseBool(tcli.selectedModule.Options["VERBOSE"])
 		lem := remote_enum.NewLdapEnumModule(
@@ -527,7 +524,6 @@ func (tcli *ToolCommandLineInterface) runLdapEnumModule() {
 			verbose,
 			tcli.selectedModule.Options["LOG_FILE"],
 		)
-		fmt.Println("Running")
 		lem.Run()
 	}
 }
@@ -540,7 +536,6 @@ func (tcli *ToolCommandLineInterface) runASREPRoastingModule() {
 			break
 		}
 	}
-	fmt.Println("allSet: ", allSet)
 	if allSet {
 		verbose, _ := strconv.ParseBool(tcli.selectedModule.Options["VERBOSE"])
 		safemode, _ := strconv.ParseBool(tcli.selectedModule.Options["SAFE_MODE"])
@@ -559,7 +554,6 @@ func (tcli *ToolCommandLineInterface) runASREPRoastingModule() {
 			int(threads),
 			int(delay),
 		)
-		fmt.Println("Running")
 		arm.Run()
 	}
 }
@@ -797,7 +791,7 @@ func (tcli *ToolCommandLineInterface) runPassTheHash() {
 				}
 			}
 			if allSet {
-				pthm := local_exploit.NewPassTheHashModule(tcli.c2m, tcli.selectedModule.Options["AGENT"])
+				pthm := local_exploit.NewPassTheHashModule(tcli.c2m, tcli.selectedModule.Options["AGENT"], tcli.selectedModule.Options["LISTEN_HOST"], tcli.selectedModule.Options["LISTEN_PORT"])
 				pthm.Run()
 			}
 		} else {
