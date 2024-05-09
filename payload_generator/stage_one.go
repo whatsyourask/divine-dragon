@@ -69,12 +69,6 @@ func (sopgm *StageOnePayloadGeneratorModule) preparePayloadSource() (string, err
 			"SENDLOGS",
 			"CHECKAUTHTOKEN",
 		}
-	} else {
-		funcPatterns = []string{
-			"WRITETOFILE",
-			"SHELL",
-			"FILENAME",
-		}
 	}
 	for _, funcPattern := range funcPatterns {
 		payloadSource = strings.Replace(payloadSource, funcPattern, util.RandString(util.RandInt()), -1)
