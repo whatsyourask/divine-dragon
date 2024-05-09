@@ -13,6 +13,7 @@ import (
 	"os"
 	"strconv"
 	"strings"
+	"text/tabwriter"
 )
 
 type ModuleSettings struct {
@@ -685,15 +686,16 @@ func (tcli *ToolCommandLineInterface) checkSessions() {
 	if tcli.c2m != nil {
 		agents := tcli.c2m.GetAgents()
 		tcli.agents = agents
-		out := ""
 		if len(agents) > 0 {
+			fmt.Println()
+			fmt.Println("Active Agents:")
+			fmt.Println()
+			w := tabwriter.NewWriter(os.Stdout, 1, 1, 1, ' ', 0)
+			fmt.Fprintln(w, "Agent UUID\tHostname\tUsername")
 			for _, agent := range agents {
-				out += fmt.Sprintf("%s - %s - %s\n", agent.Uuid, agent.Hostname, agent.Username)
+				fmt.Fprintf(w, "%s\t%s\t%s\n", agent.Uuid, agent.Hostname, agent.Username)
 			}
-			fmt.Println()
-			fmt.Println("\t\t\tActive sessions of agents")
-			fmt.Println()
-			fmt.Println(out)
+			w.Flush()
 			fmt.Println()
 		} else {
 			fmt.Println()
@@ -726,10 +728,13 @@ func (tcli *ToolCommandLineInterface) checkAgentJobs(agentUuid string) {
 				fmt.Println()
 				fmt.Printf("Jobs of Agent with UUID: %s\n", agentUuid)
 				fmt.Println()
+				w := tabwriter.NewWriter(os.Stdout, 1, 1, 1, ' ', 0)
+				fmt.Fprintln(w, "Job UUID\tStatus\tResult")
 				for ind := range jobs {
 					jobUuid := jobs[ind]
-					fmt.Printf("%s - %v - %s\n", jobUuid, statuses[jobUuid], results[jobUuid])
+					fmt.Fprintf(w, "%s\t%v\t%s\n", jobUuid, statuses[jobUuid], results[jobUuid])
 				}
+				w.Flush()
 				fmt.Println()
 			} else {
 				fmt.Println()
@@ -761,9 +766,12 @@ func (tcli *ToolCommandLineInterface) checkAgentLogs(agentUuid string) {
 				fmt.Println()
 				fmt.Printf("Logs of Agent with UUID: %s\n", agentUuid)
 				fmt.Println()
+				w := tabwriter.NewWriter(os.Stdout, 1, 1, 1, ' ', 0)
+				fmt.Fprintln(w, "Level\tStatus\tStage\tTime\tMessage")
 				for _, log := range logs {
-					fmt.Printf("%s - %s - %s - %s - %s\n", log[0], log[1], log[2], log[3], log[4])
+					fmt.Fprintf(w, "%s\t%s\t%s\t%s\t%s\n", log[0], log[1], log[2], log[3], log[4])
 				}
+				w.Flush()
 				fmt.Println()
 			} else {
 				fmt.Println()
