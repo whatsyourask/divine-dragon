@@ -5,6 +5,7 @@ import (
 	"divine-dragon/c2"
 	"divine-dragon/local_exploit"
 	"divine-dragon/payload_generator"
+	"divine-dragon/remote_access"
 	"divine-dragon/remote_enum"
 	"divine-dragon/remote_exploit"
 	"divine-dragon/transport"
@@ -162,12 +163,25 @@ func NewToolCommandLineInterface() (*ToolCommandLineInterface, error) {
 			Options: map[string]string{
 				"HOST":            "",
 				"PORT":            "4444",
+				"PAYLOAD_TYPE":    "agent",
+				"PLATFORM":        "windows",
+				"ARCH":            "amd64",
+				"EXECUTABLE_NAME": "payload.exe",
+			},
+			Run: tcli.runStageOnePayloadGeneratorModule,
+		},
+		{
+			Name: "payload_generator/shell",
+			Info: "Module to generate Bind/Reverse shell payload in go binary.",
+			Options: map[string]string{
+				"HOST":            "",
+				"PORT":            "4444",
 				"PAYLOAD_TYPE":    "",
 				"PLATFORM":        "windows",
 				"ARCH":            "amd64",
 				"EXECUTABLE_NAME": "payload.exe",
 			},
-			Run: tcli.runPayloadGeneratorModule,
+			Run: tcli.runStageTwoPayloadGeneratorModule,
 		},
 		{
 			Name: "c2",
@@ -187,6 +201,20 @@ func NewToolCommandLineInterface() (*ToolCommandLineInterface, error) {
 				"LISTEN_PORT": "4444",
 			},
 			Run: tcli.runPassTheHash,
+		},
+		{
+			Name: "remote_access/shell",
+			Info: "Module to get a remote access via Bind/Reverse shell payload sent to agent.",
+			Options: map[string]string{
+				"AGENT":           "",
+				"HOST":            "",
+				"PORT":            "4444",
+				"PAYLOAD_TYPE":    "reverse",
+				"PLATFORM":        "windows",
+				"ARCH":            "amd64",
+				"EXECUTABLE_NAME": "payload.exe",
+			},
+			Run: tcli.runRemoteAccessShellModule,
 		},
 	}
 	tcli.generalCommandsMethods = map[string]func(){
@@ -643,7 +671,7 @@ func (tcli *ToolCommandLineInterface) runSmbPasswordSprayingModule() {
 	}
 }
 
-func (tcli *ToolCommandLineInterface) runPayloadGeneratorModule() {
+func (tcli *ToolCommandLineInterface) runStageOnePayloadGeneratorModule() {
 	var allSet bool = true
 	for _, moduleValue := range tcli.selectedModule.Options {
 		if moduleValue == "" {
@@ -800,6 +828,60 @@ func (tcli *ToolCommandLineInterface) runPassTheHash() {
 			}
 			if allSet {
 				pthm := local_exploit.NewPassTheHashModule(tcli.c2m, tcli.selectedModule.Options["AGENT"], tcli.selectedModule.Options["LISTEN_HOST"], tcli.selectedModule.Options["LISTEN_PORT"])
+				pthm.Run()
+			}
+		} else {
+			fmt.Println()
+			fmt.Println("You have 0 connected agents.")
+			fmt.Println()
+		}
+	} else {
+		tcli.noC2Print()
+	}
+}
+
+func (tcli *ToolCommandLineInterface) runStageTwoPayloadGeneratorModule() {
+	var allSet bool = true
+	for _, moduleValue := range tcli.selectedModule.Options {
+		if moduleValue == "" {
+			allSet = false
+			break
+		}
+	}
+	if allSet {
+		stpgm := payload_generator.NewStageTwoPayloadGeneratorModule(
+			tcli.selectedModule.Options["HOST"],
+			tcli.selectedModule.Options["PORT"],
+			tcli.selectedModule.Options["PAYLOAD_TYPE"],
+			tcli.selectedModule.Options["PLATFORM"],
+			tcli.selectedModule.Options["ARCH"],
+			tcli.selectedModule.Options["EXECUTABLE_NAME"],
+		)
+		stpgm.Run()
+	}
+}
+
+func (tcli *ToolCommandLineInterface) runRemoteAccessShellModule() {
+	if tcli.c2m != nil {
+		if len(tcli.c2m.GetAgents()) != 0 {
+			var allSet bool = true
+			for _, moduleValue := range tcli.selectedModule.Options {
+				if moduleValue == "" {
+					allSet = false
+					break
+				}
+			}
+			if allSet {
+				pthm := remote_access.NewRemoteShellModule(
+					tcli.c2m,
+					tcli.selectedModule.Options["AGENT"],
+					tcli.selectedModule.Options["HOST"],
+					tcli.selectedModule.Options["PORT"],
+					tcli.selectedModule.Options["PAYLOAD_TYPE"],
+					tcli.selectedModule.Options["PLATFORM"],
+					tcli.selectedModule.Options["ARCH"],
+					tcli.selectedModule.Options["EXECUTABLE_NAME"],
+				)
 				pthm.Run()
 			}
 		} else {
