@@ -38,7 +38,7 @@ func (sopgm *StageOnePayloadGeneratorModule) Run() {
 	if err != nil {
 		sopgm.logger.Log.Error(err)
 	}
-	sopgm.logger.Log.Noticef("Your payload for shell was generated in file %s:", sopgm.executableName)
+	sopgm.logger.Log.Noticef("Your payload for Stage One was generated in file %s:", sopgm.executableName)
 	sopgm.logger.Log.Noticef("See the source code below:\n%s", payloadSource)
 	err = sopgm.compilePayload(payloadSource)
 	if err != nil {
