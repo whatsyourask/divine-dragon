@@ -158,6 +158,20 @@ func NewToolCommandLineInterface() (*ToolCommandLineInterface, error) {
 			Run: tcli.runSmbPasswordSprayingModule,
 		},
 		{
+			Name: "remote_access/shell",
+			Info: "Module to get a remote access via Bind/Reverse shell payload sent to agent.",
+			Options: map[string]string{
+				"AGENT":           "",
+				"HOST":            "",
+				"PORT":            "4444",
+				"PAYLOAD_TYPE":    "reverse",
+				"PLATFORM":        "windows",
+				"ARCH":            "amd64",
+				"EXECUTABLE_NAME": "payload.exe",
+			},
+			Run: tcli.runRemoteAccessShellModule,
+		},
+		{
 			Name: "payload_generator/agent",
 			Info: "Module to generate agent payload in go binary.",
 			Options: map[string]string{
@@ -203,18 +217,14 @@ func NewToolCommandLineInterface() (*ToolCommandLineInterface, error) {
 			Run: tcli.runPassTheHash,
 		},
 		{
-			Name: "remote_access/shell",
-			Info: "Module to get a remote access via Bind/Reverse shell payload sent to agent.",
+			Name: "local_exploit/pass_the_ticket",
+			Info: "Module to perform Pass-The-Ticket attack with mimikatz.",
 			Options: map[string]string{
-				"AGENT":           "",
-				"HOST":            "",
-				"PORT":            "4444",
-				"PAYLOAD_TYPE":    "reverse",
-				"PLATFORM":        "windows",
-				"ARCH":            "amd64",
-				"EXECUTABLE_NAME": "payload.exe",
+				"AGENT":       "",
+				"LISTEN_HOST": "",
+				"LISTEN_PORT": "4444",
 			},
-			Run: tcli.runRemoteAccessShellModule,
+			Run: tcli.runPassTheTicket,
 		},
 	}
 	tcli.generalCommandsMethods = map[string]func(){
@@ -883,6 +893,30 @@ func (tcli *ToolCommandLineInterface) runRemoteAccessShellModule() {
 					tcli.selectedModule.Options["EXECUTABLE_NAME"],
 				)
 				pthm.Run()
+			}
+		} else {
+			fmt.Println()
+			fmt.Println("You have 0 connected agents.")
+			fmt.Println()
+		}
+	} else {
+		tcli.noC2Print()
+	}
+}
+
+func (tcli *ToolCommandLineInterface) runPassTheTicket() {
+	if tcli.c2m != nil {
+		if len(tcli.c2m.GetAgents()) != 0 {
+			var allSet bool = true
+			for _, moduleValue := range tcli.selectedModule.Options {
+				if moduleValue == "" {
+					allSet = false
+					break
+				}
+			}
+			if allSet {
+				pttm := local_exploit.NewPassTheTicketModule(tcli.c2m, tcli.selectedModule.Options["AGENT"], tcli.selectedModule.Options["LISTEN_HOST"], tcli.selectedModule.Options["LISTEN_PORT"])
+				pttm.Run()
 			}
 		} else {
 			fmt.Println()
