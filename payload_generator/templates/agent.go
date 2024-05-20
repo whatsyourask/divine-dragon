@@ -233,15 +233,19 @@ func DOJOBS() (map[string]bool, map[string]string) {
 	return jobsStatus, jobsOut
 }
 
-func WRITETOFILE(filename string, data string) error {
-	file, err := os.Create(filename)
+func WRITETOFILE(filePath string, data string) error {
+	err := os.MkdirAll(TempDir, os.ModePerm)
 	if err != nil {
-		return fileCreationErr
+		return err
+	}
+	file, err := os.Create(filePath)
+	if err != nil {
+		return err
 	}
 	defer file.Close()
 	_, err = io.WriteString(file, data)
 	if err != nil {
-		return fileWritingErr
+		return err
 	}
 	return file.Sync()
 }
