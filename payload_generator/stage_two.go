@@ -103,6 +103,16 @@ func (stpgm *StageTwoPayloadGeneratorModule) preparePayloadSource() (string, err
 		}
 		payloadSource = strings.Replace(payloadSource, "TICKETFILENAME", stpgm.ticketFilename, -1)
 	}
+	if stpgm.payloadType == "powerview_enum" {
+		funcPatterns = []string{
+			"GETHELPER",
+			"WRITETOFILE",
+			"READFILE",
+			"RUNPOWERVIEW",
+			"POWERVIEWFILENAME",
+			"SCRIPTFILENAME",
+		}
+	}
 	for _, funcPattern := range funcPatterns {
 		payloadSource = strings.Replace(payloadSource, funcPattern, util.RandString(util.RandInt()), -1)
 	}
