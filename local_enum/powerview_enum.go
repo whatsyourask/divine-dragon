@@ -317,7 +317,9 @@ func (pvem *PowerViewEnumModule) printResults(output payloadOutput) {
 	fmt.Println()
 	for _, ACL := range output.ACLs {
 		fmt.Fprintf(w, "\tObject\t%s\n", ACL.ObjectDN)
-		fmt.Fprintf(w, "\tRight\t%v\n\n", ACL.ActiveDirectoryRights)
+		fmt.Println(ACL.ActiveDirectoryRights)
+		rights := pvem.convertAccessMask(ACL.ActiveDirectoryRights)
+		fmt.Fprintf(w, "\tRight\t%v\n\n", rights)
 		fmt.Fprintf(w, "\t---\n\n")
 	}
 	pvem.logger.Log.Info("ACEs:")
@@ -363,4 +365,46 @@ func (pvem *PowerViewEnumModule) printResults(output payloadOutput) {
 		fmt.Fprintf(w, "\t---\n\n")
 	}
 	w.Flush()
+}
+
+func (pvem *PowerViewEnumModule) convertAccessMask(accessMask int) string {
+	activeDirectoryRigths := map[uint64]string{
+		1:        "CreateChild",
+		2:        "DeleteChild",
+		4:        "ListChildren",
+		8:        "Self",
+		16:       "ReadProperty",
+		32:       "WriteProperty",
+		64:       "DeleteTree",
+		128:      "ListObject",
+		256:      "ExtendedRight",
+		65536:    "DeleteObject",
+		131072:   "ReadControl",
+		262144:   "WriteDacl",
+		524288:   "WriteOwner",
+		1048576:  "Syncronize",
+		16777216: "AccessSystemSecurity",
+		131076:   "GenericExecute",
+		131220:   "GenericRead",
+		131112:   "GenericWrite",
+		983551:   "GenericAll",
+	}
+	accessMaskUint64 := uint64(accessMask)
+	for bit, right := range activeDirectoryRigths {
+		if accessMaskUint64 == bit {
+			return right
+		}
+	}
+	rights := []string{}
+	for accessMaskUint64 != 0 {
+		for bit, right := range activeDirectoryRigths {
+			if accessMaskUint64&bit == bit {
+				fmt.Println(accessMaskUint64, bit)
+				rights = append(rights, right)
+				accessMaskUint64 = accessMaskUint64 - bit
+				break
+			}
+		}
+	}
+	return strings.Join(rights, ",")
 }
