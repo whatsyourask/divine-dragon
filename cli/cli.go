@@ -3,6 +3,7 @@ package cli
 import (
 	"bufio"
 	"divine-dragon/c2"
+	"divine-dragon/local_enum"
 	"divine-dragon/local_exploit"
 	"divine-dragon/payload_generator"
 	"divine-dragon/remote_access"
@@ -207,6 +208,14 @@ func NewToolCommandLineInterface() (*ToolCommandLineInterface, error) {
 			Run: tcli.runC2Module,
 		},
 		{
+			Name: "local_enum/powerview",
+			Info: "Module to perform enumeration with predifined PowerShell script that uses PowerView.",
+			Options: map[string]string{
+				"AGENT": "",
+			},
+			Run: tcli.runPowerViewEnumModule,
+		},
+		{
 			Name: "local_exploit/pass_the_hash",
 			Info: "Module to perform Pass-The-Hash attack with mimikatz.",
 			Options: map[string]string{
@@ -214,7 +223,7 @@ func NewToolCommandLineInterface() (*ToolCommandLineInterface, error) {
 				"LISTEN_HOST": "",
 				"LISTEN_PORT": "4444",
 			},
-			Run: tcli.runPassTheHash,
+			Run: tcli.runPassTheHashModule,
 		},
 		{
 			Name: "local_exploit/pass_the_ticket",
@@ -224,7 +233,7 @@ func NewToolCommandLineInterface() (*ToolCommandLineInterface, error) {
 				"LISTEN_HOST": "",
 				"LISTEN_PORT": "4444",
 			},
-			Run: tcli.runPassTheTicket,
+			Run: tcli.runPassTheTicketModule,
 		},
 	}
 	tcli.generalCommandsMethods = map[string]func(){
@@ -826,7 +835,7 @@ func (tcli *ToolCommandLineInterface) checkAgentLogs(agentUuid string) {
 	}
 }
 
-func (tcli *ToolCommandLineInterface) runPassTheHash() {
+func (tcli *ToolCommandLineInterface) runPassTheHashModule() {
 	if tcli.c2m != nil {
 		if len(tcli.c2m.GetAgents()) != 0 {
 			var allSet bool = true
@@ -837,7 +846,12 @@ func (tcli *ToolCommandLineInterface) runPassTheHash() {
 				}
 			}
 			if allSet {
-				pthm := local_exploit.NewPassTheHashModule(tcli.c2m, tcli.selectedModule.Options["AGENT"], tcli.selectedModule.Options["LISTEN_HOST"], tcli.selectedModule.Options["LISTEN_PORT"])
+				pthm := local_exploit.NewPassTheHashModule(
+					tcli.c2m,
+					tcli.selectedModule.Options["AGENT"],
+					tcli.selectedModule.Options["LISTEN_HOST"],
+					tcli.selectedModule.Options["LISTEN_PORT"],
+				)
 				pthm.Run()
 			}
 		} else {
@@ -904,7 +918,7 @@ func (tcli *ToolCommandLineInterface) runRemoteAccessShellModule() {
 	}
 }
 
-func (tcli *ToolCommandLineInterface) runPassTheTicket() {
+func (tcli *ToolCommandLineInterface) runPassTheTicketModule() {
 	if tcli.c2m != nil {
 		if len(tcli.c2m.GetAgents()) != 0 {
 			var allSet bool = true
@@ -915,8 +929,37 @@ func (tcli *ToolCommandLineInterface) runPassTheTicket() {
 				}
 			}
 			if allSet {
-				pttm := local_exploit.NewPassTheTicketModule(tcli.c2m, tcli.selectedModule.Options["AGENT"], tcli.selectedModule.Options["LISTEN_HOST"], tcli.selectedModule.Options["LISTEN_PORT"])
+				pttm := local_exploit.NewPassTheTicketModule(
+					tcli.c2m,
+					tcli.selectedModule.Options["AGENT"],
+					tcli.selectedModule.Options["LISTEN_HOST"],
+					tcli.selectedModule.Options["LISTEN_PORT"],
+				)
 				pttm.Run()
+			}
+		} else {
+			fmt.Println()
+			fmt.Println("You have 0 connected agents.")
+			fmt.Println()
+		}
+	} else {
+		tcli.noC2Print()
+	}
+}
+
+func (tcli *ToolCommandLineInterface) runPowerViewEnumModule() {
+	if tcli.c2m != nil {
+		if len(tcli.c2m.GetAgents()) != 0 {
+			var allSet bool = true
+			for _, moduleValue := range tcli.selectedModule.Options {
+				if moduleValue == "" {
+					allSet = false
+					break
+				}
+			}
+			if allSet {
+				pvem := local_enum.NewPowerViewEnumModule(tcli.c2m, tcli.selectedModule.Options["AGENT"])
+				pvem.Run()
 			}
 		} else {
 			fmt.Println()
