@@ -369,25 +369,46 @@ func (pvem *PowerViewEnumModule) printResults(output payloadOutput) {
 
 func (pvem *PowerViewEnumModule) convertAccessMask(accessMask int) string {
 	activeDirectoryRigths := map[uint64]string{
-		1:        "CreateChild",
-		2:        "DeleteChild",
-		4:        "ListChildren",
-		8:        "Self",
-		16:       "ReadProperty",
-		32:       "WriteProperty",
-		64:       "DeleteTree",
-		128:      "ListObject",
-		256:      "ExtendedRight",
-		65536:    "DeleteObject",
-		131072:   "ReadControl",
-		262144:   "WriteDacl",
-		524288:   "WriteOwner",
-		1048576:  "Syncronize",
 		16777216: "AccessSystemSecurity",
-		131076:   "GenericExecute",
+		1048576:  "Syncronize",
+		983551:   "GenericAll",
+		524288:   "WriteOwner",
+		262144:   "WriteDacl",
 		131220:   "GenericRead",
 		131112:   "GenericWrite",
-		983551:   "GenericAll",
+		131076:   "GenericExecute",
+		131072:   "ReadControl",
+		65536:    "DeleteObject",
+		256:      "ExtendedRight",
+		128:      "ListObject",
+		64:       "DeleteTree",
+		32:       "WriteProperty",
+		16:       "ReadProperty",
+		8:        "Self",
+		4:        "ListChildren",
+		2:        "DeleteChild",
+		1:        "CreateChild",
+	}
+	rightsBits := []uint64{
+		16777216,
+		1048576,
+		983551,
+		524288,
+		262144,
+		131220,
+		131112,
+		131076,
+		131072,
+		65536,
+		256,
+		128,
+		64,
+		32,
+		16,
+		8,
+		4,
+		2,
+		1,
 	}
 	accessMaskUint64 := uint64(accessMask)
 	for bit, right := range activeDirectoryRigths {
@@ -397,10 +418,9 @@ func (pvem *PowerViewEnumModule) convertAccessMask(accessMask int) string {
 	}
 	rights := []string{}
 	for accessMaskUint64 != 0 {
-		for bit, right := range activeDirectoryRigths {
+		for _, bit := range rightsBits {
 			if accessMaskUint64&bit == bit {
-				fmt.Println(accessMaskUint64, bit)
-				rights = append(rights, right)
+				rights = append(rights, activeDirectoryRigths[bit])
 				accessMaskUint64 = accessMaskUint64 - bit
 				break
 			}
