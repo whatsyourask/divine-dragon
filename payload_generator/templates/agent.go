@@ -142,7 +142,6 @@ func GETUSERNAME() string {
 }
 
 func CHECKJOBS() error {
-	CHECKAUTHTOKEN()
 	req, err := http.NewRequest("GET", "https://HOST:PORT/agent/jobs", nil)
 	if err != nil {
 		Logger.Info().Str("status", "error").Str("stage", "checking jobs").Msg(requestCreationErr.Error())
