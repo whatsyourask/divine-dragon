@@ -471,7 +471,6 @@ func (c2s *C2Server) getAllAgentLogsHandler(c *gin.Context) {
 }
 
 func (c2s *C2Server) Run() error {
-	c2s.activeJobs["test"] = []string{"test"}
 	err := c2s.r.RunTLS(c2s.host+":"+c2s.port, "data/c2/"+c2s.host+".crt", "data/c2/"+c2s.host+".key")
 	if err != nil {
 		return fmt.Errorf("\ncan't start an HTTP server: %v", err)
