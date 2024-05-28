@@ -103,7 +103,7 @@ func (stpgm *StageTwoPayloadGeneratorModule) preparePayloadSource() (string, err
 		}
 		payloadSource = strings.Replace(payloadSource, "TICKETFILENAME", stpgm.ticketFilename, -1)
 	}
-	if stpgm.payloadType == "powerview_enum" {
+	if stpgm.payloadType == "powerview_enum" || stpgm.payloadType == "powerview_enumusers" {
 		funcPatterns = []string{
 			"GETHELPER",
 			"WRITETOFILE",

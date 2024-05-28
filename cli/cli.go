@@ -5,6 +5,7 @@ import (
 	"divine-dragon/c2"
 	"divine-dragon/local_enum"
 	"divine-dragon/local_exploit"
+	"divine-dragon/local_post"
 	"divine-dragon/payload_generator"
 	"divine-dragon/remote_access"
 	"divine-dragon/remote_enum"
@@ -234,6 +235,16 @@ func NewToolCommandLineInterface() (*ToolCommandLineInterface, error) {
 				"LISTEN_PORT": "4444",
 			},
 			Run: tcli.runPassTheTicketModule,
+		},
+		{
+			Name: "local_post/dcsync",
+			Info: "Module to perform DC Sync attack with mimikatz.",
+			Options: map[string]string{
+				"AGENT":       "",
+				"LISTEN_HOST": "",
+				"LISTEN_PORT": "4444",
+			},
+			Run: tcli.runDCSyncModule,
 		},
 	}
 	tcli.generalCommandsMethods = map[string]func(){
@@ -960,6 +971,35 @@ func (tcli *ToolCommandLineInterface) runPowerViewEnumModule() {
 			if allSet {
 				pvem := local_enum.NewPowerViewEnumModule(tcli.c2m, tcli.selectedModule.Options["AGENT"])
 				pvem.Run()
+			}
+		} else {
+			fmt.Println()
+			fmt.Println("You have 0 connected agents.")
+			fmt.Println()
+		}
+	} else {
+		tcli.noC2Print()
+	}
+}
+
+func (tcli *ToolCommandLineInterface) runDCSyncModule() {
+	if tcli.c2m != nil {
+		if len(tcli.c2m.GetAgents()) != 0 {
+			var allSet bool = true
+			for _, moduleValue := range tcli.selectedModule.Options {
+				if moduleValue == "" {
+					allSet = false
+					break
+				}
+			}
+			if allSet {
+				dsm := local_post.NewDCSyncModule(
+					tcli.c2m,
+					tcli.selectedModule.Options["AGENT"],
+					tcli.selectedModule.Options["LISTEN_HOST"],
+					tcli.selectedModule.Options["LISTEN_PORT"],
+				)
+				dsm.Run()
 			}
 		} else {
 			fmt.Println()
