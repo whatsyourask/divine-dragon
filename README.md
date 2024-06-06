@@ -1,5 +1,7 @@
 # Divine Dragon
 
+![Divine-Dragon](img/image.png)
+
 Divine Dragon is my bachelor's degree project. It's more like a pet project, but I have tried to move it closer to the side where it becomes a real product. So, let's explore some features that the Divine Dragon is offering to you.
 
 ## Features
@@ -88,6 +90,6 @@ The operator role has the following API routes:
 
 The next scheme will summarize the above:
 
-![C2-agent-interaction](img/C2-Agent-interaction.jpg)
+![C2-Agent-Interaction](img/c2agent-interaction.png)
 
 ## Payload execution through the agent
