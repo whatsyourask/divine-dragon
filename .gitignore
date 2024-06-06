@@ -1,0 +1,7 @@
+*.txt
+*.crt
+*.key
+*.log
+*.exe
+.DS_Store
+!mimikatz.exe
