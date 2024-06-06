@@ -4,6 +4,26 @@
 
 Divine Dragon is my bachelor's degree project. It's more like a pet project, but I have tried to move it closer to the side where it becomes a real product. So, let's explore some features that the Divine Dragon is offering to you.
 
+## Table of Contents
+
+* [Features](#features)
+  * [Modular Architecture](#modular-architecture)
+  * [Command Line Interface](#command-line-interface)
+  * [Do enumeration and reconnaissance remotely](#do-enumeration-and-reconnaissance-remotely)
+  * [Exploit famous vulnerabilities remotely](#exploit-famous-vulnerabilities-remotely)
+  * [Command & Control Server](#command--control-server)
+  * [Throw exploits locally](#throw-exploits-locally)
+* [Dependencies](#dependencies)
+* [Details of Implementation](#details-of-implementation)
+  * [Command Line Interface commands](#command-line-interface-commands)
+  * [C2 server]($c2-server)
+  * [Agent](#agent)
+  * [C2 and agent communication](#c2-and-agent-communication)
+  * [Payload Generator](#payload-generator)
+  * [Payload execution through the agent](#payload-execution-through-the-agent)
+* [Disclaimer](#disclaimer)
+* [Contact Me](#contact-me)
+
 ## Features
 
 ### Modular Architecture
@@ -59,7 +79,7 @@ All of the payloads described above are created through a basic "payload generat
 
 # Details of implementation
 
-## Command Line Interface
+## Command Line Interface commands
 
 General commands:
 - `list modules` - to see the list of implemented or active modules.
@@ -150,3 +170,11 @@ Part 1:
 
 Part 2:
 ![pass-the-ticket-part-2](img/pass-the-ticket-part-2.gif)
+
+# Disclaimer
+The information in this repository is for research and educational purposes and not meant to be used in production environments and/or as part of commercial products.
+
+# Contact Me
+
+Whether you want to report a bug, send a patch, or give some suggestions
+on this package, reach out to me at https://t.me/whatsyourask.
