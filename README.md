@@ -48,10 +48,44 @@ All of the payloads described above are created through a basic "payload generat
 
 ## Details of implementation
 
-### Command Line Interface
+### Agent
+
+Agent is just a small program that will execute whatever it receives from the C2.
+At the start of the process with the agent binary, it will gather hostname, username and generate a unique UUID of the agent. After that, it will register with this info on C2.
+
+Agent doesn't implement living-off-the-land techniques. It's more like a proof-of-concept or an example-like program in Go for the purposes of pentest.
 
 ### C2 server
 
+C2 server implemented as an `HTTP` server with `REST API`. Currently, certificate for TLS server authentication is generated as self-signed.
+
+REST API has two roles implemented:
+- `Agent` (like an implant/agent/beacon)
+- `Operator` (like a Red Team Operator)
+
+Both role will obtain a `Json-Web-Token (JWT)` after connecting to C2. Each of the generated token is signed with a very large secret. This JWT tokens are active for about 3 hours for each role. It is allowed to refresh JWT token in 6 hours.
+
+#### Agent role has the following api routes:
+- `/connect` - a route to register a new agent and connect it to C2.
+- `/agent/jobs` - a route to check all jobs of the specific agent.
+- `/agent/jobs/:job-uuid/payload/` - a route for the agent to take a payload for a specific job with UUID.
+- `/agent/jobs/update` - a route to update status of the job.
+- `/agent/logs/add` - a route to add logs with info about how the jobs goes.
+
+#### Operator role has the following api routes:
+- `/login` - a route to registre a new operator and login at the same time. For now, it is what it is.
+- `/operator/agents/` - a route to check all active agents.
+- `/operator/agents/:agent-uuid/jobs` - a route to check jobs of a specific agent.
+- `/operator/agents:agent-uuid/jobs/:job-uuid/status` - a route to get a status of a specific job of a specific agent.
+- `/operator/agents/:agent-uuid/logs` - a route to get all logs about the jobs of the specific agent.
+
+#### General route
+- `/helpers/:job-uuid/:helper-filename` - a route to download some helperes for payloads like Mimikatz, PowerView, etc.
+
 ### C2 & Agent communication
+
+The next scheme will summarize the described above:
+
+![Alt text](img/C2-Agent-interaction.jpg)
 
 ### Payload execution through the agent
