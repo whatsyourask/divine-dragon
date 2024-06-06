@@ -50,9 +50,25 @@ All of the payloads described above are created through a basic "payload generat
 
 # Details of implementation
 
-## C2 server
+## Command Line Interface
 
-![c2-cli](img/c2-cli.gif)
+General commands:
+- `list modules` - to see the list of implemented or active modules.
+- `show info <module>` - to see information about a specific module.
+- `use <module>` - to choose a module.
+- `sessions` - to check the sessions of the active agents.
+- `jobs <agent-uuid>` - to check the jobs of a specific agent.
+- `logs <agent-uuid>` - to check the logs of a specific agent.
+- `exit`
+
+Module commands:
+- `info` - to see information about the chosen module.
+- `show options` - to see the available options for the chosen module.
+- `set <OPTION> <VALUE>` - to set a value to the module.
+- `run` - to execute.
+- `back` - to return to general commands.
+
+## C2 server
 
 C2 server implemented as an `HTTP` server with `REST API`. Currently, certificates for TLS server authentication are generated as self-signed.
 
@@ -61,6 +77,10 @@ The REST API has two roles implemented:
 - `Operator` (like a Red Team Operator)
 
 Both roles will obtain a `Json-Web-Token (JWT)` after connecting to C2. Each of the generated tokens is signed with a very large secret. These JWT tokens are active for about 3 hours for each role. It is allowed to refresh the JWT token in 6 hours.
+
+To start a C2, use the `c2` module as shown below:
+
+![c2-cli](img/c2-cli.gif)
 
 ### The agent role has the following API routes:
 - `/connect` - a route to register a new agent and connect it to C2.
@@ -86,7 +106,7 @@ At the start of the process with the agent binary, it will gather the hostname a
 
 The agent doesn't implement living-off-the-land techniques. It's more like a proof-of-concept or an example-like program in Go for the purposes of a pentest. So, each payload that you want it to execute will touch the filesystem.
 
-To generate an agent you have to use a special module called `payload_generator/agent`. More about it will be below.
+To generate an agent, you have to use a special module called `payload_generator/agent`. More about it will be below.
 
 ## C2 and agent communication
 
@@ -96,9 +116,28 @@ The next scheme will summarize the above:
 
 ## Payload Generator
 
-Payload generator is a module of the Divine Dragon. It has 2 main functionality:
-- Generate a stager (The agent above). `payload_generator/agent` module in CLI.
+The payload generator is a module of the Divine Dragon. It has two main functionalities:
+- Generate a stager (the agent above). `payload_generator/agent` module in CLI.
 - Generate a payload for the stager. `payload_generator/shell` or any of `local_<whatever>/<whatever>` modules.
 
+For example, to generate a new agent payload, use the `payload_generator/agent` module as below:
+
+![payload-generator-agent-cli](img/payload-generator-agent-cli.gif)
 
 ## Payload execution through the agent
+
+Let's see a scheme that will explain how the Divine Dragon runs exploits locally through the agent:
+
+![pass-the-hash](img/pass-the-hash.jpg)
+
+As you can see, it's all about different executables, which, as I said before, will touch the filesystem.
+
+The Divine Dragon will use module `payload_generator/stage_two` which is hidden for users in CLI. It will use it to generate all payloads for the agent and supply them to C2.
+
+A little demonstration is below.
+
+Part 1:
+![pass-the-hash-part-1](img/pass-the-hash-part-1.gif)
+
+Part 2:
+![pass-the-ticket-part-2](img/pass-the-ticket-part-2.gif)
