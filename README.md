@@ -48,6 +48,15 @@ List of available payloads to execute through the agent:
 
 All of the payloads described above are created through a basic "payload generator" module.
 
+## Dependencies
+
+- [gin](https://github.com/gin-gonic/gin) - as a main framework for the C2 based on HTTP with REST API.
+- [gin-jwt](https://github.com/appleboy/gin-jwt) - as a middleware for JWT in REST API.
+- [gokrb5](https://github.com/jcmturner/gokrb5) - to work with Kerberos service.
+- [go-ldap](https://github.com/go-ldap/ldap) - to work with LDAP service.
+- [go-smb2](https://github.com/hirochachacha/go-smb2) - to work with SMB service.
+- [kerbrute](https://github.com/ropnop/kerbrute) - have taken some code from here.
+
 # Details of implementation
 
 ## Command Line Interface
