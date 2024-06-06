@@ -135,7 +135,7 @@ For example, to generate a new agent payload, use the `payload_generator/agent` 
 
 ## Payload execution through the agent
 
-Let's see a scheme that will explain how the Divine Dragon runs exploits locally through the agent:
+Let's see a scheme with Pass-The-Hash technique that will explain how the Divine Dragon runs exploits locally through the agent:
 
 ![pass-the-hash](img/pass-the-hash.jpg)
 
