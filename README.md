@@ -16,7 +16,7 @@ Divine Dragon is my bachelor's degree project. It's more like a pet project, but
 * [Dependencies](#dependencies)
 * [Details of Implementation](#details-of-implementation)
   * [Command Line Interface commands](#command-line-interface-commands)
-  * [C2 server]($c2-server)
+  * [C2 server](#c2-server)
   * [Agent](#agent)
   * [C2 and agent communication](#c2-and-agent-communication)
   * [Payload Generator](#payload-generator)
