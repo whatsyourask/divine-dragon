@@ -50,16 +50,9 @@ All of the payloads described above are created through a basic "payload generat
 
 # Details of implementation
 
-## Agent
-
-Agent is just a small program that will execute whatever it receives from the C2.
-At the start of the process with the agent binary, it will gather the hostname and username and generate a unique UUID for the agent. After that, it will register with this information on C2.
-
-The agent doesn't implement living-off-the-land techniques. It's more like a proof-of-concept or an example-like program in Go for the purposes of a pentest.
-
-
-
 ## C2 server
+
+![c2-cli](img/c2-cli.gif)
 
 C2 server implemented as an `HTTP` server with `REST API`. Currently, certificates for TLS server authentication are generated as self-signed.
 
@@ -86,10 +79,26 @@ The operator role has the following API routes:
 ### General Route
 - `/helpers/:job-uuid/:helper-filename` - a route to download some helpers for payloads like Mimikatz, PowerView, etc.
 
+## Agent
+
+Agent is just a small program that will execute whatever it receives from the C2.
+At the start of the process with the agent binary, it will gather the hostname and username and generate a unique UUID for the agent. After that, it will register with this information on C2.
+
+The agent doesn't implement living-off-the-land techniques. It's more like a proof-of-concept or an example-like program in Go for the purposes of a pentest. So, each payload that you want it to execute will touch the filesystem.
+
+To generate an agent you have to use a special module called `payload_generator/agent`. More about it will be below.
+
 ## C2 and agent communication
 
 The next scheme will summarize the above:
 
 ![C2-Agent-Interaction](img/c2agent-interaction.png)
+
+## Payload Generator
+
+Payload generator is a module of the Divine Dragon. It has 2 main functionality:
+- Generate a stager (The agent above). `payload_generator/agent` module in CLI.
+- Generate a payload for the stager. `payload_generator/shell` or any of `local_<whatever>/<whatever>` modules.
+
 
 ## Payload execution through the agent
